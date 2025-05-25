@@ -1,0 +1,1736 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title></title>
+<script type="text/javascript" src="_Gamepad.js"></script>
+<script type="text/javascript" src="Fps.js"></script>
+<script type="text/javascript" src="Screenshot.js"></script>
+<script type="text/javascript" src="d2js.js"></script>
+<script type="text/javascript" src="d2js_gl.js"></script>
+<script type="text/javascript" src="4_vert.js"></script>
+<script type="text/javascript" src="4_frag.js"></script>
+<script type="text/javascript" src="6_vert.js"></script>
+<script type="text/javascript" src="6_frag.js"></script>
+<script type="text/javascript" src="model_ground.js"></script>
+<script type="text/javascript" src="model_jiki.js"></script>
+<script type="text/javascript" src="model_jiki_shot.js"></script>
+<script type="text/javascript" src="model_enemy01.js"></script>
+<script type="text/javascript" src="model_enemy02.js"></script>
+<script type="text/javascript" src="texture.js"></script>
+<script type="text/javascript">
+
+window.onload = d2js_onload;
+window.onorientationchange = d2js_onorientationchange;
+window.onresize = d2js_onresize;
+
+var calcFps = false;
+var screenshotSimple = false;
+var lookDown = false;
+var autoShot = false;
+var expandHitFlag = true;
+var drawHitFlag = false;
+var drawTargetFlag = false;
+var useGamepad = false;
+var useSound = true;
+
+var WAIT_1 = 60/*フレーム*/;
+
+var rand;
+
+// _GLUtility
+var glu;
+
+// シェーダー
+var shader;
+var shaderSprite;
+var projMatrix;
+var viewMatrix;
+var viewProjMatrix;
+
+var MODEL_GROUND = 0;
+var MODEL_JIKI = 1;
+var MODEL_JIKI_SHOT = 2;
+var MODEL_ENEMY01 = 3;
+var MODEL_ENEMY02 = 4;
+var MODEL_NUM = 5;
+var model = new Array(MODEL_NUM);
+var modelSrc = [
+  model_ground,
+  model_jiki,
+  model_jiki_shot,
+  model_enemy01,
+  model_enemy02
+];
+
+var TEXTURE_JIKI_JET = 0;
+var TEXTURE_BAKU = 1;
+var TEXTURE_ENEMY_SHOT = 2;
+var TEXTURE_NUM = 3;
+var textureLoaded = 0;
+var textureArray = new Array();
+var glt;
+
+// BGM
+var BGM_MAIN = 0;
+var bgm = null;
+var bgmPlaying = false;
+var bgmSrc = [
+  "mp3/bgm_main.mp3",
+];
+
+// SE
+var SE_JIKI_SHOT = 0;
+var SE_BAKU = 1;
+var seLoaded = 0;
+var se = new Array();
+var seSrc = [
+  "mp3/se_jiki_shot.mp3",
+  "mp3/se_baku.mp3",
+];
+
+// 自機
+var jiki = null;
+
+// 噴射
+var jikiJet;
+var glsJet;
+
+// 自弾
+var jikiShots;
+
+// 敵
+var enemy;
+
+// 爆発
+var baku;
+var glsBaku;
+
+// 敵弾
+var enemyShot;
+var glsShot;
+
+var gamepad;
+var padInfo;
+var step = 0;
+var requestIncStep = false;
+var elapse = 0;
+
+// スコア
+var score = 0;
+function addScore(point) {
+  var oldScore = score;
+  score += point;
+  if ((oldScore < 2000) && (score >= 2000)) {
+    for (var i = 0; i < 5; i++) {
+      addEnemy02();
+    }
+  }
+}
+
+// 敵が爆発した後の処理
+function bakuEnemy(type) {
+  switch (type) {
+  case ENEMY_TYPE_01:
+    addEnemy01();
+    break;
+  case ENEMY_TYPE_02:
+    addEnemy02();
+    break;
+  }
+}
+
+// 敵が範囲外に出た後の処理
+function outEnemy(type) {
+  switch (type) {
+  case ENEMY_TYPE_01:
+    addEnemy01();
+    break;
+  case ENEMY_TYPE_02:
+    addEnemy02();
+    break;
+  }
+}
+
+// 当たり判定
+function checkHit(x1, y1, z1, r1, x2, y2, z2, r2) {
+  var x = x1 - x2;
+  var y = y1 - y2;
+  var z = z1 - z2;
+  return (Math.sqrt(x * x + y * y + z * z) < r1 + r2);
+}
+
+// 敵を出現させる
+function addEnemy01(flag) {
+  var jiki_vx = jiki.vx();
+  var jiki_vz = jiki.vz();
+  var x = jiki_vx * 150;
+  var y = jiki.y() + _MOD(rand.nextInt(), 10);
+  if (y < ENEMY_Y_MIN) {
+     y = ENEMY_Y_MIN;
+  }
+  var z = jiki_vz * 150;
+  glu.push();
+  glu.setIdentity();
+  if (flag == undefined) {
+    flag = (rand.nextInt() < 0);
+  }
+  glu.rotate(flag ? -20.0 : 20.0, 0.0, 1.0, 0.0);
+  glu.transVector(x, 0.0, z);
+  x = glu.transX() + jiki.x() + _MOD(rand.nextInt(), 10);
+  z = glu.transZ() + jiki.z() + _MOD(rand.nextInt(), 10);
+  var vx = jiki.x() - x;
+  var vy = 0.0;//jiki.y() - y;
+  var vz = jiki.z() - z;
+  var d = Math.sqrt(vx * vx + vy * vy + vz * vz) * 0.6; // 自機と敵の移動を考慮に入れて距離を調整
+  var frame = d / ENEMY01_SPEED;
+  vx = jiki.x() + jiki.vx() * JIKI_SPEED * frame - x;
+  //vy = jiki.y() + jiki.vy() * JIKI_SPEED * frame - y;
+  vz = jiki.z() + jiki.vz() * JIKI_SPEED * frame - z;
+  enemy.addElement(new Enemy01(x, y, z, vx, vy, vz, model[MODEL_ENEMY01].radius() * 2.0, flag));
+  glu.pop();
+}
+function addEnemy02(flag) {
+  var jiki_vx = jiki.vx();
+  var jiki_vz = jiki.vz();
+  var x = jiki_vx * 150;
+  var y = jiki.y() + _MOD(rand.nextInt(), 20);
+  if (y < ENEMY_Y_MIN) {
+     y = ENEMY_Y_MIN;
+  }
+  var z = jiki_vz * 150;
+  glu.push();
+  glu.setIdentity();
+  if (flag == undefined) {
+    flag = (rand.nextInt() < 0);
+  }
+  glu.rotate(flag ? -30.0 : 30.0, 0.0, 1.0, 0.0);
+  glu.transVector(x, 0.0, z);
+  x = glu.transX() + jiki.x() + _MOD(rand.nextInt(), 10);
+  z = glu.transZ() + jiki.z() + _MOD(rand.nextInt(), 10);
+  var vx = jiki.x() - x;
+  var vy = 0.0;//jiki.y() - y;
+  var vz = jiki.z() - z;
+  var d = Math.sqrt(vx * vx + vy * vy + vz * vz) * 0.75; // 自機と敵の移動を考慮に入れて距離を調整
+  var frame = d / ENEMY02_SPEED;
+  vx = jiki.x() + jiki.vx() * JIKI_SPEED * frame - x;
+  //vy = jiki.y() + jiki.vy() * JIKI_SPEED * frame - y;
+  vz = jiki.z() + jiki.vz() * JIKI_SPEED * frame - z;
+  enemy.addElement(new Enemy02(x, y, z, vx, vy, vz, model[MODEL_ENEMY02].radius() * 2.0));
+  glu.pop();
+}
+
+// 爆発を発生させる
+function addBaku(x, y, z) {
+  if (useSound) {
+    playSound(SE_BAKU);
+  }
+  baku.addElement(new Baku(x, y, z, rand.next(50) / 50, rand.next(50) / 50, rand.next(50) / 50));
+}
+
+// 敵弾を発生させる
+function addEnemyShot(x, y, z) {
+  var vx = jiki.x() - x;
+  var vy = jiki.y() - y;
+  var vz = jiki.z() - z;
+  var d = Math.sqrt(vx * vx + vy * vy + vz * vz) * 0.7; // 自機と敵弾の移動を考慮に入れて距離を調整
+  var frame = d / ENEMY_SHOT_SPEED;
+  var tx = jiki.x() + jiki.vx() * JIKI_SPEED * frame;
+  var ty = jiki.y() + jiki.vy() * JIKI_SPEED * frame;
+  var tz = jiki.z() + jiki.vz() * JIKI_SPEED * frame;
+  enemyShot.addElement(new EnemyShot(x, y, z, tx, ty, tz, ENEMY_SHOT_RADIUS));
+}
+
+// 当たり判定描画
+function drawHit(x, y, z, r) {
+  if (!drawHitFlag) {
+    return;
+  }
+  glu.project(x, y, z, glu.utMatrix(viewMatrix), glu.utMatrix(projMatrix));
+  var projectX = glu.projectX();
+  var projectY = glu.projectY();
+  var projectZ = glu.projectZ();
+  if (projectZ <= 1.0) {
+    glu.unProject(projectX + 1.0, projectY, projectZ, glu.utMatrix(viewMatrix), glu.utMatrix(projMatrix));
+    x -= glu.projectX();
+    y -= glu.projectY();
+    z -= glu.projectZ();
+    var d = Math.sqrt(x * x + y * y + z * z);
+    var g = getGraphics();
+    g.setColor(g.getColorOfRGBA(255, 0, 255, 127));
+    g.drawCircle(projectX, getHeight() - projectY, r / d);
+  }
+}
+
+// ターゲット描画
+function drawTarget(x, y, z) {
+  if (!drawTargetFlag) {
+    return;
+  }
+  glu.project(x, y, z, glu.utMatrix(viewMatrix), glu.utMatrix(projMatrix));
+  var projectX = glu.projectX();
+  var projectY = glu.projectY();
+  x = projectX;
+  y = getHeight() - projectY;
+  var g = getGraphics();
+  g.setFont(16, "ＭＳ ゴシック");
+  g.setColor(g.getColorOfRGB(255, 0, 255));
+  g.drawString("＋", x - 8, y + 8);
+}
+
+// ゲームパッド対応
+var PAD_TYPE_BUTTON = 0;
+var PAD_TYPE_AXIS_MINUS = 1;
+var PAD_TYPE_AXIS_PLUS = 2;
+function MyPadInfo(){
+  this.type  = PAD_TYPE_BUTTON;
+  this.index = -1;
+}
+function waitInputPad(gamepad, padInfo) {
+  if (gamepad == null) {
+    return true;
+  }
+  var i;
+  for (i = 0; i < gamepad.buttonNum(); i++) {
+    if (gamepad.isButtonPressed(i)) {
+      padInfo.type  = PAD_TYPE_BUTTON;
+      padInfo.index = i;
+      return true;
+    }
+  }
+  for (i = 0; i < gamepad.axisNum(); i++) {
+    var value = gamepad.axisValue(i);
+    if (value == 1.0) {
+      padInfo.type  = PAD_TYPE_AXIS_PLUS;
+      padInfo.index = i;
+      return true;
+    }
+    if (value == -1.0) {
+      padInfo.type  = PAD_TYPE_AXIS_MINUS;
+      padInfo.index = i;
+      return true;
+    }
+  }
+  return false;
+}
+function isInputPad(gamepad, padInfo) {
+  if (gamepad != null) {
+    switch (padInfo.type) {
+    case PAD_TYPE_BUTTON:
+      return gamepad.isButtonPressed(padInfo.index);
+    case PAD_TYPE_AXIS_MINUS:
+      return (gamepad.axisValue(padInfo.index) < 0.0);
+    case PAD_TYPE_AXIS_PLUS:
+      return (gamepad.axisValue(padInfo.index) > 0.0);
+    }
+  }
+  return false;
+}
+
+// BGM再生
+function stopMusic() {
+  if (bgm != null) {
+    stopAudio(bgm);
+  }
+}
+function playMusic(id) {
+  if (canUseAudio()) {
+    stopMusic();
+    bgm = loadAndPlayAudio(bgmSrc[id], true);
+  }
+}
+
+// SE再生
+var soundId = -1;
+function resetSound() {
+  soundId = -1;
+}
+function playSound(id) {
+  if (se[id] != null) {
+    if (canUseAudio()) {
+      if (id != soundId) {
+        soundId = id;
+        playAudio(se[soundId], false);
+      }
+    }
+  }
+}
+
+function frameTime() {
+  return 1000 / WAIT_1;
+}
+
+function init() {
+  window._USE_KEY = true;
+
+  window._USE_SKIPFRAME = true; // フレームスキップ有効
+  window._MAX_FRAMECOUNT = 10;
+}
+
+function start() {
+  var i;
+
+  // SE
+  if (useSound) {
+    for (i = 0; i < seSrc.length; i++) {
+      se[i] = null;
+    }
+  }
+
+  rand = new _Random();
+
+  if (useGamepad) {
+    gamepad = new _Gamepad();
+    gamepad.setTolerance(0.5/*0.05*/, 1.0);
+
+    padInfo = new Array(5);
+    for (i = 0; i < 5; i++) {
+      padInfo[i] = new MyPadInfo();
+    }
+  }
+
+  setCurrent("fuga_canvas");
+  return true;
+}
+
+function paint(g) {
+  if (useSound) {
+    // SEの読み込み
+    if (seLoaded < seSrc.length) {
+      if (canUseAudio()) {
+        if (canPlayType("audio/mp3")) {
+          se[seLoaded] = loadAudio(seSrc[seLoaded]);
+        }
+      }
+      seLoaded++;
+    }
+  }
+
+  // テクスチャの読み込み
+  if ((!useSound || (seLoaded >= seSrc.length)) && (textureLoaded < textureSrc.length)) {
+    if (isImageBusy()) {
+    } else if (textureArray.length <= textureSrc.length) {
+      var index = textureArray.length;
+      if (textureArray.length < textureSrc.length) {
+        textureArray[index] = loadImage(textureSrc[index]);
+      } else if (textureLoaded < textureSrc.length) {
+        textureLoaded++;
+      }
+    }
+  }
+
+  if ((!useSound || (seLoaded >= seSrc.length)) && (textureLoaded >= textureSrc.length)) {
+    setCurrent3D("hoge_canvas", "fuga_canvas");
+  }
+}
+
+function init3D(gl, _glu) {
+  glu = _glu;
+
+  glt = new _GLTexture(textureArray, TEXTURE_NUM);
+  glt.use(TEXTURE_JIKI_JET, true);
+  glt.use(TEXTURE_BAKU, true);
+
+  glu.viewport(0, 0, getWidth(), getHeight());
+
+  var fieldOfView = (45 * Math.PI) / 180; // 視野角（ラジアン）
+  var aspect = getWidth() / getHeight(); // 幅と高さの比率はキャンバスの表示サイズに合わせる
+  var zNear = 0.1; // 表示するオブジェクトの範囲（手前）
+  var zFar = 1000.0; // 表示するオブジェクトの範囲（奥）
+  var t = Math.tan(fieldOfView / 2) * zNear;
+  var b = -t;
+  var r = t * aspect;
+  var l = -r;
+  glu.setIdentity();
+  glu.frustum(l, r, b, t, zNear, zFar);
+  projMatrix = glu.glMatrix();
+
+  shader = new _GLShader(vsSourceColor, fsSourceColor, true);
+  shaderSprite = new _GLShader(vsSourceSprite, fsSourceSprite, true);
+
+  shader.use();
+  gl.uniform3fv(shader.vars.uDirectionalLightColor, [0.5, 0.5, 0.5]);
+  gl.uniform3fv(shader.vars.uDirectionalLightPosition, [-0.85, 0.8, -0.75]);
+  gl.uniform3fv(shader.vars.uAmbientLightColor, [0.6, 0.6, 0.6]);
+  var eyeDirection = [
+    -projMatrix[ 2],
+    -projMatrix[ 6],
+    -projMatrix[10]
+  ];
+  gl.uniform3fv(shader.vars.uEyeDirection, eyeDirection);
+  gl.uniform3fv(shader.vars.uSpecularLightColor, [1.0, 1.0, 1.0]);
+  gl.uniform3fv(shader.vars.uFogColor, [1.0, 1.0, 1.0]);
+  gl.uniform1f(shader.vars.uFogNear, 50.0);
+  gl.uniform1f(shader.vars.uFogFar, 500.0);
+
+  shaderSprite.use();
+  gl.uniform1i(shaderSprite.vars.uSampler, 0/*TEXTURE0*/);
+
+  model[MODEL_GROUND] = createGLModel(modelSrc[MODEL_GROUND], 6.0, MODEL_GROUND, true, false);
+  model[MODEL_JIKI] = createGLModel(modelSrc[MODEL_JIKI], 0.01, MODEL_JIKI, true, false);
+  model[MODEL_JIKI_SHOT] = createGLModel(modelSrc[MODEL_JIKI_SHOT], 0.01, MODEL_JIKI_SHOT, true, false);
+  model[MODEL_ENEMY01] = createGLModel(modelSrc[MODEL_ENEMY01], 0.02, MODEL_ENEMY01, true, false);
+  model[MODEL_ENEMY02] = createGLModel(modelSrc[MODEL_ENEMY02], 0.02, MODEL_ENEMY02, true, false);
+
+  // 噴射
+  var coord = new Array(12);
+  coord[ 0] = -0.5; coord[ 1] = -0.5; coord[ 2] = 0.0;
+  coord[ 3] =  0.5; coord[ 4] = -0.5; coord[ 5] = 0.0;
+  coord[ 6] = -0.5; coord[ 7] =  0.5; coord[ 8] = 0.0;
+  coord[ 9] =  0.5; coord[10] =  0.5; coord[11] = 0.0;
+  var map = new Array(8);
+  map[0] =   0; map[1] = 128;
+  map[2] = 128; map[3] = 128;
+  map[4] =   0; map[5] =   0;
+  map[6] = 128; map[7] =   0;
+  glsJet = new _GLSprite(MODEL_NUM + TEXTURE_JIKI_JET, false); // idをMODEL_NUM以上の値に
+  glsJet.setCoord(coord);
+  glsJet.setMap(map);
+
+  // 爆発
+  var coord2 = new Array(12);
+  coord2[ 0] = -10.0; coord2[ 1] = -10.0; coord2[ 2] = 0.0;
+  coord2[ 3] =  10.0; coord2[ 4] = -10.0; coord2[ 5] = 0.0;
+  coord2[ 6] = -10.0; coord2[ 7] =  10.0; coord2[ 8] = 0.0;
+  coord2[ 9] =  10.0; coord2[10] =  10.0; coord2[11] = 0.0;
+  var map2 = new Array(8);
+  map2[0] =   0; map2[1] = 128;
+  map2[2] = 128; map2[3] = 128;
+  map2[4] =   0; map2[5] =   0;
+  map2[6] = 128; map2[7] =   0;
+  glsBaku = new _GLSprite(MODEL_NUM + TEXTURE_BAKU, false); // idをMODEL_NUM以上の値に
+  glsBaku.setCoord(coord2);
+  glsBaku.setMap(map2);
+
+  // 敵弾
+  var coord3 = new Array(12);
+  coord3[ 0] = -0.35; coord3[ 1] = -0.35; coord3[ 2] = 0.0;
+  coord3[ 3] =  0.35; coord3[ 4] = -0.35; coord3[ 5] = 0.0;
+  coord3[ 6] = -0.35; coord3[ 7] =  0.35; coord3[ 8] = 0.0;
+  coord3[ 9] =  0.35; coord3[10] =  0.35; coord3[11] = 0.0;
+  var map3 = new Array(8);
+  map3[0] =  0; map3[1] = 64;
+  map3[2] = 64; map3[3] = 64;
+  map3[4] =  0; map3[5] =  0;
+  map3[6] = 64; map3[7] =  0;
+  glsShot = new _GLSprite(MODEL_NUM + TEXTURE_ENEMY_SHOT, false); // idをMODEL_NUM以上の値に
+  glsShot.setCoord(coord3);
+  glsShot.setMap(map3);
+
+  // 自機
+  jiki = new Jiki();
+
+  // 噴射
+  jikiJet = new _Vector(16);
+
+  // 自弾
+  jikiShots = new JikiShots();
+
+  // 敵
+  enemy = new _Vector(32);
+
+  // 爆発
+  baku = new _Vector(32);
+
+  // 敵弾
+  enemyShot = new _Vector(32);
+
+  for (var i = 0; i < 5; i++) {
+    addEnemy01();
+  }
+
+  return true;
+}
+
+function init2D(g) {
+  if (calcFps) {
+    myStartCalcFps();
+  }
+}
+
+function clear2D(g) {
+  g.setColor(g.getColorOfRGBA(255, 255, 255, 0));
+  g.fillRect(0, 0, getWidth(), getHeight());
+  g.setColor(g.getColorOfRGB(0, 0, 0));
+  g.drawRect(0, 0, getWidth() - 1, getHeight() - 1);
+}
+
+function paint3D(gl, glu) {
+  var i, j;
+
+  if (useGamepad && (step < 5)) {
+    return;
+  }
+
+  // BGM再生
+  if (useSound) {
+    if (!bgmPlaying) {
+      bgmPlaying = true;
+      playMusic(BGM_MAIN);
+    }
+  }
+
+  for (var frame = 0; frame < frameCount(); frame++) {
+    if (frame != 0) {
+      elapse++;
+    }
+
+    // SE
+    if (useSound) {
+      resetSound();
+    }
+
+    // 自弾と敵との当たり判定
+    for (i = jikiShots.size() - 1; i >= 0; i--) {
+      var tmp1 = jikiShots.get(i);
+      for (j = enemy.size() - 1; j >= 0; j--) {
+        var tmp2 = enemy.elementAt(j);
+        if (checkHit(tmp1.x(), tmp1.y(), tmp1.z(), tmp1.radius(), tmp2.x(), tmp2.y(), tmp2.z(), tmp2.radius())) {
+          if (tmp2.damage()) {
+            var type = tmp2.type();
+            addBaku(tmp2.x(), tmp2.y(), tmp2.z());
+            enemy.removeElementAt(j);
+
+            bakuEnemy(type);
+          }
+          jikiShots.remove(i);
+        }
+      }
+    }
+
+    // 敵弾と自機との当たり判定
+    for (i = enemyShot.size() - 1; i >= 0; i--) {
+      var tmp = enemyShot.elementAt(i);
+      if (checkHit(tmp.x(), tmp.y(), tmp.z(), tmp.radius(), jiki.x(), jiki.y(), jiki.z(), jiki.radius())) {
+        var x = jiki.x();
+        var y = jiki.y();
+        var z = jiki.z();
+        addBaku(x, y, z);
+        enemyShot.removeElementAt(i);
+      }
+    }
+
+    var key = getKeypadState();
+    var _gamepad = (useGamepad && canUseGamepad() && (gamepad.fetch(0) != null)) ? gamepad : null;
+    jiki.update(
+      ((key & keyBit(window._KEY_UP   )) != 0) || (useGamepad && isInputPad(_gamepad, padInfo[0])),
+      ((key & keyBit(window._KEY_DOWN )) != 0) || (useGamepad && isInputPad(_gamepad, padInfo[1])),
+      ((key & keyBit(window._KEY_LEFT )) != 0) || (useGamepad && isInputPad(_gamepad, padInfo[2])),
+      ((key & keyBit(window._KEY_RIGHT)) != 0) || (useGamepad && isInputPad(_gamepad, padInfo[3]))
+    );
+
+    // 噴射の追加
+    if (_MOD(elapse, _DIV(WAIT_1, 15)) == 0) {
+      var vx = -jiki.vx() / WAIT_1/*フレーム数に比例した値*/;
+      var vy = -jiki.vy() / WAIT_1/*フレーム数に比例した値*/;
+      var vz = -jiki.vz() / WAIT_1/*フレーム数に比例した値*/;
+
+      glu.setIdentity();
+      glu.rotate(jiki.ry(), 0.0, 1.0, 0.0);
+      glu.rotate(-jiki.rx(), 1.0, 0.0, 0.0);
+      glu.rotate(-jiki.rz(), 0.0, 0.0, 1.0);
+
+      glu.transVector(1.0, 0.0, 0.0);
+      jikiJet.addElement(new JikiJet(
+        jiki.x() - jiki.vx() * 1.5 + glu.transX(),
+        jiki.y() - jiki.vy() * 1.5 + glu.transY(),
+        jiki.z() - jiki.vz() * 1.5 + glu.transZ(),
+        vx, vy, vz
+      ));
+
+      glu.transVector(-1.0, 0.0, 0.0);
+      jikiJet.addElement(new JikiJet(
+        jiki.x() - jiki.vx() * 1.5 + glu.transX(),
+        jiki.y() - jiki.vy() * 1.5 + glu.transY(),
+        jiki.z() - jiki.vz() * 1.5 + glu.transZ(),
+        vx, vy, vz
+      ));
+    }
+
+    // 自弾の追加
+    if (autoShot || ((key & keyBit(window._KEY_SPACE)) != 0) || (useGamepad && isInputPad(_gamepad, padInfo[4]))) {
+      if (jikiShots.add(elapse, jiki.x(), jiki.y(), jiki.z(), jiki.vx(), jiki.vy(), jiki.vz(), jiki.rz())) {
+        if (useSound) {
+          playSound(SE_JIKI_SHOT);
+        }
+      }
+    }
+
+    // 噴射の更新
+    for (i = jikiJet.size() - 1; i >= 0; i--) {
+      var tmp = jikiJet.elementAt(i);
+      if (!tmp.update()) {
+        jikiJet.removeElementAt(i);
+      }
+    }
+
+    // 自弾の更新
+    for (i = jikiShots.size() - 1; i >= 0; i--) {
+      var tmp = jikiShots.get(i);
+      if (!tmp.update()) {
+        jikiShots.remove(i);
+      }
+    }
+
+    // 敵の更新
+    for (i = enemy.size() - 1; i >= 0; i--) {
+      var tmp = enemy.elementAt(i);
+      if (!tmp.update()) {
+        var type = tmp.type();
+        enemy.removeElementAt(i);
+
+        outEnemy(type);
+      }
+    }
+
+    // 爆発の更新
+    for (i = baku.size() - 1; i >= 0; i--) {
+      var tmp = baku.elementAt(i);
+      if (!tmp.update()) {
+        baku.removeElementAt(i);
+      }
+    }
+
+    // 敵弾の更新
+    for (i = enemyShot.size() - 1; i >= 0; i--) {
+      var tmp = enemyShot.elementAt(i);
+      if (!tmp.update()) {
+        enemyShot.removeElementAt(i);
+      }
+    }
+  }
+
+  // ビュー座標変換行列
+  var camera_vx = -jiki.vx() * 10.0;
+  var camera_vy = -jiki.vy() * 10.0;
+  var camera_vz = -jiki.vz() * 10.0;
+  var look_x = jiki.x();
+  var look_y = jiki.y();
+  var look_z = jiki.z();
+  var camera_x = look_x + camera_vx;
+  var camera_y = look_y + camera_vy;
+  var camera_z = look_z + camera_vz;
+  if (lookDown) {
+    look_x += jiki.vx() * 30.0;
+    look_z += jiki.vz() * 30.0;
+    camera_y += 100.0;
+  } else {
+    look_y += 1.0; // 自機の少し上
+    camera_y += 2.0; // 少し上から見下ろす
+  }
+  glu.lookAt(camera_x, camera_y, camera_z, look_x, look_y, look_z, 0.0, 1.0, 0.0);
+  viewMatrix = glu.glMatrix();
+
+  // ビュー×プロジェクション座標変換行列
+  glu.set(glu.utMatrix(projMatrix));
+  glu.multiply(glu.utMatrix(viewMatrix));
+  viewProjMatrix = glu.glMatrix();
+  shader.use();
+  gl.uniformMatrix4fv(shader.vars.uViewProjMatrix, false, viewProjMatrix);
+  shaderSprite.use();
+  gl.uniformMatrix4fv(shaderSprite.vars.uViewProjMatrix, false, viewProjMatrix);
+
+  gl.enable(gl.CULL_FACE); // 裏面を表示しない
+
+  gl.enable(gl.DEPTH_TEST); // 深度テストを有効化
+  gl.depthFunc(gl.LEQUAL); // 奥にあるものは隠れるようにする
+  gl.depthMask(true);
+
+  gl.enable(gl.BLEND);
+  gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE);
+
+  gl.clearColor(1.0, 1.0, 1.0, 1.0);
+  gl.clearDepth(1.0);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  var gld = new _GLDraw(null, false/*スプライト用行列にビュー行列を含めない*/);
+
+  // 地面
+  var ground_x = _DIV(jiki.x(), GROUND_SIZE) * GROUND_SIZE;
+  var ground_z = _DIV(jiki.z(), GROUND_SIZE) * GROUND_SIZE;
+  for (var z = -1; z <= 1; z++) {
+    for (var x = -1; x <= 1; x++) {
+      glu.setIdentity();
+      glu.translate(ground_x + GROUND_SIZE * x, 0.0, ground_z + GROUND_SIZE * z);
+      gld.add(model[MODEL_GROUND], -1, -1, glu.glMatrix(), -1);
+    }
+  }
+
+  // 自機
+  jiki.draw(gld);
+  drawHit(jiki.x(), jiki.y(), jiki.z(), jiki.radius());
+
+  // 噴射
+  for (i = jikiJet.size() - 1; i >= 0; i--) {
+    var tmp = jikiJet.elementAt(i);
+    tmp.draw(gld);
+  }
+
+  // 自弾
+  glu.push();
+  for (i = jikiShots.size() - 1; i >= 0; i--) {
+    var tmp = jikiShots.get(i);
+    tmp.draw(gld);
+    drawHit(tmp.x(), tmp.y(), tmp.z(), tmp.radius());
+  }
+  glu.pop();
+
+  // 敵
+  for (i = enemy.size() - 1; i >= 0; i--) {
+    var tmp = enemy.elementAt(i);
+    tmp.draw(gld);
+    drawHit(tmp.x(), tmp.y(), tmp.z(), tmp.radius());
+    drawTarget(tmp.tx(), tmp.ty(), tmp.tz());
+
+    glu.project(tmp.x(), tmp.y(), tmp.z(), glu.utMatrix(viewMatrix), glu.utMatrix(projMatrix));
+    var projectX = glu.projectX();
+    var projectY = glu.projectY();
+    var projectZ = glu.projectZ();
+    if (projectZ <= 1.0) {
+      var x = tmp.x() - jiki.x();
+      var y = tmp.y() - jiki.y();
+      var z = tmp.z() - jiki.z();
+      var distance = Math.sqrt(x * x + y * y + z * z);
+      x = projectX;
+      y = getHeight() - projectY;
+      var g = getGraphics();
+      g.setFont(8, "ＭＳ ゴシック");
+      g.setColor(g.getColorOfRGB(0, 255, 255));
+      z = 50 - distance;
+      if (z < 15) {
+        z = 15;
+      }
+      g.drawLine(x, y, x + z, y - z);
+      g.drawLine(x + z, y - z, x + z + 20, y - z);
+      g.drawString("" + (_INT(distance * 100) / 100), x + z, y - z);
+    }
+  }
+
+  // 爆発
+  for (i = baku.size() - 1; i >= 0; i--) {
+    var tmp = baku.elementAt(i);
+    tmp.draw(gld);
+  }
+
+  // 敵弾
+  for (i = enemyShot.size() - 1; i >= 0; i--) {
+    var tmp = enemyShot.elementAt(i);
+    tmp.draw(gld);
+    drawHit(tmp.x(), tmp.y(), tmp.z(), tmp.radius());
+  }
+
+  gld.draw(glt);
+
+  elapse++;
+}
+
+function paint2D(g) {
+  if (useGamepad && (step < 5)) {
+    g.setFont(24, "ＭＳ ゴシック");
+    g.setColor(g.getColorOfRGB(0, 0, 0));
+    switch (step) {
+    case 0: g.drawString("パッド上を入力してください", 0, 24); break;
+    case 1: g.drawString("パッド下を入力してください", 0, 24); break;
+    case 2: g.drawString("パッド左を入力してください", 0, 24); break;
+    case 3: g.drawString("パッド右を入力してください", 0, 24); break;
+    case 4: g.drawString("パッドボタンを入力してください", 0, 24); break;
+    }
+    var _gamepad = (canUseGamepad() && (gamepad.fetch(0) != null)) ? gamepad : null;
+    if (_gamepad != null) {
+      if (waitInputPad(_gamepad, padInfo[step])) {
+        requestIncStep = true;
+      }
+    }
+    return;
+  }
+
+  if (!lookDown) {
+    g.setFont(24, "ＭＳ ゴシック");
+    g.setColor(g.getColorOfRGB(0, 0, 0));
+    var str = "" + score;
+    g.drawString("SCORE", 0, 24);
+    g.drawString(str, getWidth() / 3 - g.stringWidth(str), 24);
+  }
+
+  if (calcFps) {
+    myDrawFps(g);
+  }
+
+  myScreenshot2D();
+}
+
+// _GLTexture用
+function glTextureAlphaFlag(index) {
+  return true;
+}
+function glTextureDepthFlag(index) {
+  return true;
+}
+function glTextureFlipY(index) {
+  return false;
+}
+function glTextureFilter(gl, index) {
+  return gl.LINEAR;
+}
+function glTextureWrap(gl, index) {
+  return gl.CLAMP_TO_EDGE;
+}
+
+// _GLModel用
+function glModelActiveTexture(gl, id) {
+  return gl.TEXTURE0;
+}
+function glModelBindPositionBuffer(gl, id, lighting) {
+  _GLShader.bindPositionBuffer(shader.vars.aVertexPosition);
+}
+function glModelBindNormalBuffer(gl, id, lighting) {
+  _GLShader.bindNormalBuffer(shader.vars.aVertexNormal);
+}
+function glModelBindColorBuffer(gl, id, lighting) {
+  _GLShader.bindColorBuffer(shader.vars.aVertexColor);
+}
+function glModelBindTextureCoordBuffer(gl, id, lighting) {
+}
+function glModelSetTexture(gl, glt, index, tex_index, id, lighting) {
+  return false;
+}
+function glModelBeginDraw(gl, glt, index, tex_index, id, lighting, material_diffuse, material_ambient, material_emission, material_specular, material_shininess) {
+  if (id >= MODEL_NUM) {
+  } else {
+    gl.uniform1i(shader.vars.uFog, (id == MODEL_GROUND) ? true : false);
+
+    var data;
+    if (id == MODEL_JIKI_SHOT) {
+      data = [
+        1.0, 1.0, 0.0, // diffuse
+        2.0, 2.0, 0.0, // ambient
+        0.0, 0.0, 0.0, // specular
+        50.0 // shininess
+      ];
+    } else {
+      data = [
+        1.5, 1.5, 1.5, // diffuse
+        0.8, 0.8, 0.8, // ambient
+        0.1, 0.1, 0.1, // specular
+        50.0 // shininess
+      ];
+    }
+    gl.uniform3fv(shader.vars.uDiffuse, [data[0], data[1], data[2]]);
+    gl.uniform3fv(shader.vars.uAmbient, [data[3], data[4], data[5]]);
+    gl.uniform3fv(shader.vars.uSpecular, [data[6], data[7], data[8]]);
+    gl.uniform1f(shader.vars.uShininess, data[9]);
+  }
+
+  return true;
+}
+function glModelEndDraw(gl, glt, index, tex_index, id, lighting) {
+}
+
+// _GLSprite用
+function glSpriteActiveTexture(gl, id) {
+  return gl.TEXTURE0;
+}
+function glSpriteBindPositionBuffer(gl, id) {
+  _GLShader.bindPositionBuffer(shaderSprite.vars.aVertexPosition);
+}
+function glSpriteBindTextureCoordBuffer(gl, id) {
+  _GLShader.bindTextureCoordBuffer(shaderSprite.vars.aTextureCoord);
+}
+function glSpriteSetTexture(gl, glt, tex_index, id) {
+  return false;
+}
+
+// _GLDraw用
+function glDrawUseProgram(gl, p, index) {
+  if (p.id() >= MODEL_NUM) {
+    shaderSprite.use();
+  } else {
+    shader.use();
+  }
+}
+function glDrawSetProjectionMatrix(gl, mat, p, index) {
+}
+function glDrawSetModelViewMatrix(gl, mat, p, index) {
+  if (p.id() >= MODEL_NUM) {
+    gl.uniformMatrix4fv(shaderSprite.vars.uModelMatrix, false, mat);
+  } else {
+    gl.uniformMatrix4fv(shader.vars.uModelMatrix, false, mat);
+    glu.push();
+    glu.set(glu.utMatrix(mat));
+    glu.invert(); // 逆行列
+    gl.uniformMatrix4fv(shader.vars.uInvMatrix, false, glu.glMatrix());
+    glu.transpose(); // 行列の転置
+    gl.uniformMatrix4fv(shader.vars.uNormalMatrix, false, glu.glMatrix());
+    glu.set(glu.utMatrix(viewMatrix));
+    glu.multiply(glu.utMatrix(mat));
+    gl.uniformMatrix4fv(shader.vars.uModelViewMatrix, false, glu.glMatrix());
+    glu.pop();
+  }
+}
+
+function processEvent(type, param) {
+  switch (type) {
+  case window._KEY_PRESSED_EVENT:
+    if (param == window._KEY_S) {
+      myScreenshot();
+    }
+    break;
+  }
+}
+
+function processGamepadEvent(type, id, param) {
+  switch(type) {
+  case window._GAMEPAD_BUTTON_RELEASED_EVENT:
+  case window._GAMEPAD_AXIS_MINUS_RELEASED_EVENT:
+  case window._GAMEPAD_AXIS_PLUS_RELEASED_EVENT:
+    if (requestIncStep) {
+      requestIncStep = false;
+      step++;
+    }
+    break;
+  }
+}
+
+function error() {
+}
+
+var GROUND_SIZE = 1200.0;
+
+var JIKI_Y_MIN = 20.0;
+var JIKI_Y_MAX = 100.0;
+var JIKI_RX_MAX = 60.0;
+var JIKI_RZ_MAX = 45.0;
+
+var ENEMY_Y_MIN = 40.0;
+
+var JIKI_SPEED = 1.0;
+var JIKI_RX_ADD = 0.1;
+var JIKI_RX_ADD_MAX = 0.5;
+var JIKI_RY_ADD = 0.1;
+var JIKI_RY_ADD_MAX = 0.5;
+var JIKI_RZ_ADD = 1.0;
+var JIKI_RX_ADD2 = 1.0;
+
+var JIKI_JET_FRAME = _DIV(WAIT_1, 4);
+var BAKU_FRAME = _DIV(WAIT_1, 4);
+
+var JIKI_SHOT_MAX = 3;
+var JIKI_SHOT_INTERVAL = 8;
+var JIKI_SHOT_SPEED = 3.0;
+var JIKI_SHOT_END = WAIT_1;
+
+var ENEMY_TYPE_01 = 0;
+var ENEMY_TYPE_02 = 1;
+
+var ENEMY01_SPEED = 1.0;
+var ENEMY01_ESCAPE = 50.0;
+var ENEMY01_OUT = 150.0;
+
+var ENEMY02_SPEED = 1.5;
+var ENEMY02_ESCAPE = 50.0;
+var ENEMY02_OUT = 150.0;
+
+var ENEMY_SHOT_SPEED = 0.5;
+var ENEMY_SHOT_RADIUS = 0.35 * 1.5;
+var ENEMY_SHOT_END = WAIT_1 * 2;
+
+// 自機
+function Jiki() {
+  this._x = 0.0;
+  this._y = 50.0;
+  this._z = 0.0;
+  this._rx = 0.0;
+  this._ry = 0.0;
+  this._rz = 0.0;
+  this._rx_add = 0.0;
+  this._ry_add = 0.0;
+  this._radius = model[MODEL_JIKI].radius() / 1.5;
+
+  glu.setIdentity();
+  glu.rotate(this._ry, 0.0, 1.0, 0.0);
+  glu.rotate(this._rx, 1.0, 0.0, 0.0);
+  glu.transVector(0.0, 0.0, -1.0);
+  this._vx = glu.transX();
+  this._vy = glu.transY();
+  this._vz = glu.transZ();
+}
+Jiki.prototype = {
+
+  update : function(up, down, left, right) {
+    var rx_flag = false;
+    var ry_flag = false;
+    var rz_flag = false;
+    if (up) {
+      if (this._y < JIKI_Y_MAX) {
+        if (this._rx_add < JIKI_RX_ADD_MAX) {
+          this._rx_add += JIKI_RX_ADD;
+          if (this._rx_add > JIKI_RX_ADD_MAX) {
+            this._rx_add = JIKI_RX_ADD_MAX;
+          }
+        }
+        rx_flag = true;
+      }
+    }
+    if (down) {
+      if (this._y > JIKI_Y_MIN) {
+        if (this._rx_add > -JIKI_RX_ADD_MAX) {
+          this._rx_add -= JIKI_RX_ADD;
+          if (this._rx_add < -JIKI_RX_ADD_MAX) {
+            this._rx_add = -JIKI_RX_ADD_MAX;
+          }
+        }
+        rx_flag = true;
+      }
+    }
+    if (left) {
+      if (this._ry_add < JIKI_RY_ADD_MAX) {
+        this._ry_add += JIKI_RY_ADD;
+      }
+      ry_flag = true;
+
+      if (this._rz < -JIKI_RZ_MAX) {
+        this._rz += JIKI_RZ_ADD;
+        if (this._rz > -JIKI_RZ_MAX) {
+          this._rz = -JIKI_RZ_MAX;
+        }
+      } else {
+        this._rz -= JIKI_RZ_ADD;
+        if (this._rz < -JIKI_RZ_MAX) {
+          this._rz = -JIKI_RZ_MAX;
+        }
+      }
+      rz_flag = true;
+    }
+    if (right) {
+      if (this._ry_add > -JIKI_RY_ADD_MAX) {
+        this._ry_add -= JIKI_RY_ADD;
+      }
+      ry_flag = true;
+
+      if (this._rz > JIKI_RZ_MAX) {
+        this._rz -= JIKI_RZ_ADD;
+        if (this._rz < JIKI_RZ_MAX) {
+          this._rz = JIKI_RZ_MAX;
+        }
+      } else {
+        this._rz += JIKI_RZ_ADD;
+        if (this._rz > JIKI_RZ_MAX) {
+          this._rz = JIKI_RZ_MAX;
+        }
+      }
+      rz_flag = true;
+    }
+
+    if (!rx_flag) {
+      if (this._rx_add > 0.0) {
+        this._rx_add -= JIKI_RX_ADD;
+        if (this._rx_add < 0.0) {
+          this._rx_add = 0.0;
+        }
+      } else if (this._rx_add < 0.0) {
+        this._rx_add += JIKI_RX_ADD;
+        if (this._rx_add > 0.0) {
+          this._rx_add = 0.0;
+        }
+      }
+    }
+    this._rx += this._rx_add;
+    if (this._rx < -JIKI_RX_MAX) {
+      this._rx = -JIKI_RX_MAX;
+    }
+    if (this._rx > JIKI_RX_MAX) {
+      this._rx = JIKI_RX_MAX;
+    }
+
+    if (!ry_flag) {
+      if (this._ry_add > 0.0) {
+        this._ry_add -= JIKI_RY_ADD;
+        if (this._ry_add < 0.0) {
+          this._ry_add = 0.0;
+        }
+      } else if (this._ry_add < 0.0) {
+        this._ry_add += JIKI_RY_ADD;
+        if (this._ry_add > 0.0) {
+          this._ry_add = 0.0;
+        }
+      }
+    }
+    this._ry += this._ry_add;
+    if (this._ry < 0.0) {
+      this._ry += 360.0;
+    }
+    if (this._ry > 360.0) {
+      this._ry -= 360.0;
+    }
+
+    if (!rz_flag) {
+      if (this._rz >= 180) {
+        this._rz -= 360;
+      } else if (this._rz <= -180) {
+        this._rz += 360;
+      }
+      if (this._rz >= JIKI_RZ_ADD) {
+        this._rz -= JIKI_RZ_ADD;
+      } else if (this._rz <= -JIKI_RZ_ADD) {
+        this._rz += JIKI_RZ_ADD;
+      } else {
+        this._rz = 0.0;
+      }
+    }
+
+    glu.setIdentity();
+    glu.rotate(this._ry, 0.0, 1.0, 0.0);
+    glu.rotate(this._rx, 1.0, 0.0, 0.0);
+    glu.transVector(0.0, 0.0, -1.0);
+    this._vx = glu.transX();
+    this._vy = glu.transY();
+    this._vz = glu.transZ();
+    this._x += this._vx * JIKI_SPEED;
+    this._y += this._vy * JIKI_SPEED;
+    this._z += this._vz * JIKI_SPEED;
+    if (this._y < JIKI_Y_MIN) {
+      this._y = JIKI_Y_MIN;
+      if (this._rx < 0.0) {
+        this._rx += JIKI_RX_ADD2;
+        if (this._rx > 0.0) {
+          this._rx = 0.0;
+        }
+      }
+    }
+    if (this._y > JIKI_Y_MAX) {
+      this._y = JIKI_Y_MAX;
+      if (this._rx > 0.0) {
+        this._rx -= JIKI_RX_ADD2;
+        if (this._rx < 0.0) {
+          this._rx = 0.0;
+        }
+      }
+    }
+  },
+
+  x : function() {
+    return this._x;
+  },
+  y : function() {
+    return this._y;
+  },
+  z : function() {
+    return this._z;
+  },
+  vx : function() {
+    return this._vx;
+  },
+  vy : function() {
+    return this._vy;
+  },
+  vz : function() {
+    return this._vz;
+  },
+  rx : function() {
+    return this._rx;
+  },
+  ry : function() {
+    return this._ry;
+  },
+  rz : function() {
+    return this._rz;
+  },
+  rx_add : function() {
+    return this._rx_add;
+  },
+  ry_add : function() {
+    return this._ry_add;
+  },
+  radius : function() {
+    return this._radius;
+  },
+
+  draw : function(gld) {
+    glu.setIdentity();
+    glu.translate(this._x, this._y, this._z);
+    glu.rotate(this._ry + 180.0, 0.0, 1.0, 0.0);
+    glu.rotate(-this._rx, 1.0, 0.0, 0.0);
+    glu.rotate(this._rz, 0.0, 0.0, 1.0);
+    var mat = glu.glMatrix();
+    gld.add(model[MODEL_JIKI], -1, -1, mat, -1);
+  },
+
+};
+
+// 噴射
+function JikiJet(x, y, z, vx, vy, vz) {
+  this._x = x;
+  this._y = y;
+  this._z = z;
+  this._vx = vx;
+  this._vy = vy;
+  this._vz = vz;
+  this._elapse = 0;
+}
+JikiJet.prototype = {
+
+  update : function() {
+    this._x += this._vx;
+    this._y += this._vy;
+    this._z += this._vz;
+    this._elapse++;
+    if (this._elapse > JIKI_JET_FRAME) {
+      return false;
+    }
+    return true;
+  },
+
+  x : function() {
+    return this._x;
+  },
+  y : function() {
+    return this._y;
+  },
+  z : function() {
+    return this._z;
+  },
+  elapse : function() {
+    return this._elapse;
+  },
+  trans : function() {
+    return (1.0 / JIKI_JET_FRAME) * (JIKI_JET_FRAME - (this._elapse - 1));
+  },
+
+  draw : function(gld) {
+    gld.addSprite(glsJet, TEXTURE_JIKI_JET, this._x, this._y, this._z, this.trans());
+  },
+
+};
+
+// 自弾
+function JikiShot(x, y, z, vx, vy, vz, rz) {
+  this._x = x;
+  this._y = y;
+  this._z = z;
+  this._vx = vx;
+  this._vy = vy;
+  this._vz = vz;
+  this._rz = rz; // 発射時の自機の回転角度
+  this._radius = model[MODEL_JIKI_SHOT].radius() * 1.5;
+  this._elapse = 0;
+}
+JikiShot.prototype = {
+
+  update : function() {
+    if (expandHitFlag) {
+      if (_MOD(this._elapse, _DIV(WAIT_1, 15)) == 0) {
+        this._radius += 0.5;
+      }
+    }
+    this._x += this._vx;
+    this._y += this._vy;
+    this._z += this._vz;
+    this._elapse++;
+    if (this._elapse > JIKI_SHOT_END) {
+      return false;
+    }
+    return true;
+  },
+
+  x : function() {
+    return this._x;
+  },
+  y : function() {
+    return this._y;
+  },
+  z : function() {
+    return this._z;
+  },
+  vx : function() {
+    return this._vx;
+  },
+  vy : function() {
+    return this._vy;
+  },
+  vz : function() {
+    return this._vz;
+  },
+  rz : function() {
+    return this._rz;
+  },
+  radius : function() {
+    return this._radius;
+  },
+  elapse : function() {
+    return this._elapse;
+  },
+
+  draw : function(gld) {
+    // 進行方向を表す行列
+    glu.lookAt(0.0, 0.0, 0.0, this._vx, this._vy, this._vz, 0.0, 1.0, 0.0);
+    glu.invert();
+    var tmpMat = glu.glMatrix();
+
+    glu.setIdentity();
+    glu.translate(this._x, this._y, this._z);
+    glu.multiply(glu.utMatrix(tmpMat)); // 進行方向に向ける
+    glu.rotate(-this._rz, 0.0, 0.0, 1.0); // 発射時の自機の回転角度に合わせる
+    gld.add(model[MODEL_JIKI_SHOT], -1, -1, glu.glMatrix(), -1);
+  },
+
+};
+function JikiShots() {
+  this.jiki_shot = new _Vector(JIKI_SHOT_MAX);
+  this.jiki_shot_elapse = -JIKI_SHOT_INTERVAL;
+}
+JikiShots.prototype = {
+
+  add : function(elapse, jiki_x, jiki_y, jiki_z, jiki_vx, jiki_vy, jiki_vz, jiki_rz) {
+    if (
+      (this.jiki_shot.size() < JIKI_SHOT_MAX)/*弾数の制限*/ &&
+      (elapse >= this.jiki_shot_elapse + JIKI_SHOT_INTERVAL)/*発射間隔の制限*/
+    ) {
+      this.jiki_shot_elapse = elapse;
+      this.jiki_shot.addElement(new JikiShot(
+        jiki_x, jiki_y, jiki_z,
+        jiki_vx * JIKI_SHOT_SPEED, jiki_vy * JIKI_SHOT_SPEED, jiki_vz * JIKI_SHOT_SPEED,
+        jiki_rz
+      ));
+      return true;
+    }
+    return false;
+  },
+
+  size : function() {
+    return this.jiki_shot.size();
+  },
+
+  get : function(index) {
+    return this.jiki_shot.elementAt(index);
+  },
+
+  remove : function(index) {
+    this.jiki_shot.removeElementAt(index);
+  },
+
+};
+
+// 敵の共通プロパティを設定する関数
+function Enemy(_this, type, x, y, z, vx, vy, vz, radius) {
+  _this._type = type;
+  _this._x = x;
+  _this._y = y;
+  _this._z = z;
+  _this._tx = x + vx;
+  _this._ty = y + vy;
+  _this._tz = z + vz;
+  _this._radius = radius;
+
+  _this.type = function() {
+    return _this._type;
+  };
+  _this.x = function() {
+    return _this._x;
+  };
+  _this.y = function() {
+    return _this._y;
+  };
+  _this.z = function() {
+    return _this._z;
+  };
+  _this.tx = function() {
+    return _this._tx;
+  };
+  _this.ty = function() {
+    return _this._ty;
+  };
+  _this.tz = function() {
+    return _this._tz;
+  };
+  _this.radius = function() {
+    return _this._radius;
+  };
+}
+
+// 敵1
+function Enemy01(x, y, z, vx, vy, vz, radius, flag) {
+  Enemy(this, ENEMY_TYPE_01, x, y, z, vx, vy, vz, radius);
+
+  var d = Math.sqrt(vx * vx + vy * vy + vz * vz);
+  this._vx = vx / d;
+  this._vy = vy / d;
+  this._vz = vz / d;
+  this._target_vx = this._vx;
+  this._target_vy = this._vy;
+  this._target_vz = this._vz;
+  this._flag = flag;
+  this._r = 0.0;
+  this._elapse = 0;
+  this._step = 0;
+}
+Enemy01.prototype = {
+
+  update : function() {
+    if (this._step == 1) {
+      if (_MOD(this._elapse, _DIV(WAIT_1, 15)) == 0) {
+        this._target_vx *= 1.1;
+        this._target_vy *= 1.1;
+        this._target_vz *= 1.1;
+        this._vx = (this._vx + this._target_vx / 4.0) / 1.1;
+        this._vy = (this._vy + this._target_vy / 4.0) / 1.1;
+        this._vz = (this._vz + this._target_vz / 4.0) / 1.1;
+      }
+      this._r += (this._flag ? -360 : 360) / _DIV(WAIT_1, 2);
+    }
+    this._x += this._vx * ENEMY01_SPEED;
+    this._y += this._vy * ENEMY01_SPEED;
+    this._z += this._vz * ENEMY01_SPEED;
+    var x = this._x - jiki.x();
+    var y = this._y - jiki.y();
+    var z = this._z - jiki.z();
+    var distance = Math.sqrt(x * x + y * y + z * z);
+    if (distance > ENEMY01_OUT) {
+      return false;
+    } else if (distance < ENEMY01_ESCAPE) {
+      if (this._step == 0) {
+        this._target_vx = -(this._vx / 2.0 + jiki.vx());
+        this._target_vy = 0.0;
+        this._target_vz = -(this._vz / 2.0 + jiki.vz());
+        this._step = 1;
+      }
+    }
+    this._elapse++;
+    return true;
+  },
+
+  damage : function() {
+    addScore(30);
+    return true;
+  },
+
+  vx : function() {
+    return this._vx;
+  },
+  vy : function() {
+    return this._vy;
+  },
+  vz : function() {
+    return this._vz;
+  },
+  r : function() {
+    return this._r;
+  },
+
+  draw : function(gld) {
+    glu.setIdentity();
+    glu.translate(this._x, this._y, this._z);
+    glu.rotate(jiki.ry(), 0.0, 1.0, 0.0);
+    glu.rotate(this._r, 0.0, 0.0, 1.0);
+    gld.add(model[MODEL_ENEMY01], -1, -1, glu.glMatrix(), -1);
+  },
+
+};
+
+// 敵2
+function Enemy02(x, y, z, vx, vy, vz, radius) {
+  Enemy(this, ENEMY_TYPE_02, x, y, z, vx, vy, vz, radius);
+
+  var d = Math.sqrt(vx * vx + vy * vy + vz * vz);
+  this._vx = vx / d;
+  this._vy = vy / d;
+  this._vz = vz / d;
+  this._r = 0.0;
+  this._step = 0;
+
+  glu.lookAt(0.0, 0.0, 0.0, -this._vx, 0.0, -this._vz, 0.0, 1.0, 0.0);
+  this._look_mat = glu.lookMatrix();
+}
+Enemy02.prototype = {
+
+  update : function() {
+    if (this._step == 1) {
+      this._r -= 180 / _DIV(WAIT_1, 4);
+      if (this._r <= -180) {
+        this._r = -180;
+        this._vx = -(this._vx - jiki.vx());
+        this._vy = 0.0;
+        this._vz = -(this._vz - jiki.vz());
+        this._step = 2;
+      }
+    } else {
+      this._x += this._vx * ENEMY02_SPEED;
+      this._y += this._vy * ENEMY02_SPEED;
+      this._z += this._vz * ENEMY02_SPEED;
+      var x = this._x - jiki.x();
+      var y = this._y - jiki.y();
+      var z = this._z - jiki.z();
+      var distance = Math.sqrt(x * x + y * y + z * z);
+      if (distance > ENEMY02_OUT) {
+        return false;
+      } else if (distance < ENEMY02_ESCAPE) {
+        if (this._step == 0) {
+          // 敵弾
+          addEnemyShot(this._x, this._y, this._z);
+
+          this._step = 1;
+        }
+      }
+    }
+    return true;
+  },
+
+  damage : function() {
+    addScore(50);
+    return true;
+  },
+
+  vx : function() {
+    return this._vx;
+  },
+  vy : function() {
+    return this._vy;
+  },
+  vz : function() {
+    return this._vz;
+  },
+  r : function() {
+    return this._r;
+  },
+
+  draw : function(gld) {
+    glu.setIdentity();
+    glu.translate(this._x, this._y, this._z);
+    glu.multiply(this._look_mat);
+    glu.rotate(this._r, 1.0, 0.0, 0.0);
+    gld.add(model[MODEL_ENEMY02], -1, -1, glu.glMatrix(), -1);
+  },
+
+};
+
+// 爆発
+function Baku(x, y, z, vx, vy, vz) {
+  this._x = x;
+  this._y = y;
+  this._z = z;
+  this._vx = vx;
+  this._vy = vy;
+  this._vz = vz;
+  this._elapse = 0;
+}
+Baku.prototype = {
+
+  update : function() {
+    this._x += this._vx;
+    this._y += this._vy;
+    this._z += this._vz;
+    this._elapse++;
+    if (this._elapse > BAKU_FRAME) {
+      return false;
+    }
+    return true;
+  },
+
+  x : function() {
+    return this._x;
+  },
+  y : function() {
+    return this._y;
+  },
+  z : function() {
+    return this._z;
+  },
+  elapse : function() {
+    return this._elapse;
+  },
+  trans : function() {
+    return (1.0 / BAKU_FRAME) * (BAKU_FRAME - (this._elapse - 1));
+  },
+
+  draw : function(gld) {
+    gld.addSprite(glsBaku, TEXTURE_BAKU, this._x, this._y, this._z, this.trans());
+  },
+
+};
+
+// 敵弾
+function EnemyShot(x, y, z, tx, ty, tz, radius) {
+  this._x = x;
+  this._y = y;
+  this._z = z;
+  this._tx = tx;
+  this._ty = ty;
+  this._tz = tz;
+  var vx = this._tx - this._x;
+  var vy = this._ty - this._y;
+  var vz = this._tz - this._z;
+  var d = Math.sqrt(vx * vx + vy * vy + vz * vz);
+  this._vx = vx / d * ENEMY_SHOT_SPEED;
+  this._vy = vy / d * ENEMY_SHOT_SPEED;
+  this._vz = vz / d * ENEMY_SHOT_SPEED;
+  this._radius = radius;
+  this._elapse = 0;
+  this._elapse2 = 0;
+  var x = this._x - jiki.x();
+  var y = this._y - jiki.y();
+  var z = this._z - jiki.z();
+  this._distance = Math.sqrt(x * x + y * y + z * z);
+}
+EnemyShot.prototype = {
+
+  update : function() {
+    this._x += this._vx;
+    this._y += this._vy;
+    this._z += this._vz;
+    var x = this._x - jiki.x();
+    var y = this._y - jiki.y();
+    var z = this._z - jiki.z();
+    var distance = Math.sqrt(x * x + y * y + z * z);
+    if (distance > this._distance) {
+      this._distance = distance;
+      this._elapse2++;
+      if (this._elapse2 > ENEMY_SHOT_END) {
+        return false;
+      }
+    } else {
+      this._elapse2 = 0;
+    }
+    this._elapse++;
+    return true;
+  },
+
+  x : function() {
+    return this._x;
+  },
+  y : function() {
+    return this._y;
+  },
+  z : function() {
+    return this._z;
+  },
+  tx : function() {
+    return this._tx;
+  },
+  ty : function() {
+    return this._ty;
+  },
+  tz : function() {
+    return this._tz;
+  },
+  radius : function() {
+    return this._radius;
+  },
+  elapse : function() {
+    return this._elapse;
+  },
+
+  draw : function(gld) {
+    gld.addSprite(glsShot, TEXTURE_ENEMY_SHOT, this._x, this._y, this._z, 1.0);
+  },
+
+};
+
+</script>
+<body>
+<div align="center">
+  <div style="position:relative">
+    <canvas id="hoge_canvas" style="position:absolute; left:50%; transform:translate(-50%, 0)" width="640" height="480"></canvas>
+    <canvas id="fuga_canvas" style="position:absolute; left:50%; transform:translate(-50%, 0)" width="640" height="480"></canvas>
+  </div>
+</div>
+</body>
+</html>

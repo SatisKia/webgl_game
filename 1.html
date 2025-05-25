@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title></title>
+<script type="text/javascript" src="Fps.js"></script>
+<script type="text/javascript" src="d2js.js"></script>
+<script type="text/javascript" src="d2js_gl.js"></script>
+<script type="text/javascript">
+
+window.onload = d2js_onload;
+window.onorientationchange = d2js_onorientationchange;
+window.onresize = d2js_onresize;
+
+var calcFps = false;
+
+var WAIT_1 = 60/*フレーム*/;
+
+// _GLUtility
+var glu;
+
+function frameTime() {
+  return 1000 / WAIT_1;
+}
+
+function init() {
+  window._USE_SKIPFRAME = true; // フレームスキップ有効
+  window._MAX_FRAMECOUNT = 10;
+}
+
+function start() {
+  setCurrent("fuga_canvas");
+  return true;
+}
+
+function paint(g) {
+  setCurrent3D("hoge_canvas", "fuga_canvas");
+}
+
+function init3D(gl, _glu) {
+  glu = _glu;
+  return true;
+}
+
+function init2D(g) {
+  if (calcFps) {
+    myStartCalcFps();
+  }
+}
+
+function clear2D(g) {
+  g.setColor(g.getColorOfRGB(255, 255, 255));
+  g.fillRect(0, 0, getWidth(), getHeight());
+  g.setColor(g.getColorOfRGB(0, 0, 0));
+  g.drawRect(0, 0, getWidth() - 1, getHeight() - 1);
+}
+
+function paint3D(gl, glu) {
+}
+
+function paint2D(g) {
+  if (calcFps) {
+    myDrawFps(g);
+  }
+}
+
+function processEvent(type, param) {
+}
+
+function error() {
+}
+
+</script>
+</head>
+<body>
+<div align="center">
+  <div style="position:relative">
+    <canvas id="hoge_canvas" style="position:absolute; left:50%; transform:translate(-50%, 0)" width="640" height="480"></canvas>
+    <canvas id="fuga_canvas" style="position:absolute; left:50%; transform:translate(-50%, 0)" width="640" height="480"></canvas>
+  </div>
+</div>
+</body>
+</html>

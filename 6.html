@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title></title>
+<script type="text/javascript" src="Fps.js"></script>
+<script type="text/javascript" src="Screenshot.js"></script>
+<script type="text/javascript" src="d2js.js"></script>
+<script type="text/javascript" src="d2js_gl.js"></script>
+<script type="text/javascript" src="4_vert.js"></script>
+<script type="text/javascript" src="4_frag.js"></script>
+<script type="text/javascript" src="6_vert.js"></script>
+<script type="text/javascript" src="6_frag.js"></script>
+<script type="text/javascript" src="model_ground.js"></script>
+<script type="text/javascript" src="model_jiki.js"></script>
+<script type="text/javascript" src="texture.js"></script>
+<script type="text/javascript">
+
+window.onload = d2js_onload;
+window.onorientationchange = d2js_onorientationchange;
+window.onresize = d2js_onresize;
+
+var calcFps = false;
+var screenshotSimple = false;
+var lookDown = false;
+
+var WAIT_1 = 60/*フレーム*/;
+
+// _GLUtility
+var glu;
+
+// シェーダー
+var shader;
+var shaderSprite;
+var projMatrix;
+var viewMatrix;
+var viewProjMatrix;
+
+var MODEL_GROUND = 0;
+var MODEL_JIKI = 1;
+var MODEL_NUM = 2;
+var model = new Array(MODEL_NUM);
+var modelSrc = [
+  model_ground,
+  model_jiki
+];
+
+var TEXTURE_JIKI_JET = 0;
+var TEXTURE_NUM = 1;
+var textureLoaded = 0;
+var textureArray = new Array();
+var glt;
+
+// 自機
+var jiki = null;
+
+// 噴射
+var jikiJet;
+var glsJet;
+
+var elapse = 0;
+
+function frameTime() {
+  return 1000 / WAIT_1;
+}
+
+function init() {
+  window._USE_KEY = true;
+
+  window._USE_SKIPFRAME = true; // フレームスキップ有効
+  window._MAX_FRAMECOUNT = 10;
+}
+
+function start() {
+  setCurrent("fuga_canvas");
+  return true;
+}
+
+function paint(g) {
+  // テクスチャの読み込み
+  if (textureLoaded < textureSrc.length) {
+    if (isImageBusy()) {
+    } else if (textureArray.length <= textureSrc.length) {
+      var index = textureArray.length;
+      if (textureArray.length < textureSrc.length) {
+        textureArray[index] = loadImage(textureSrc[index]);
+      } else if (textureLoaded < textureSrc.length) {
+        textureLoaded++;
+      }
+    }
+  }
+
+  if (textureLoaded >= textureSrc.length) {
+    setCurrent3D("hoge_canvas", "fuga_canvas");
+  }
+}
+
+function init3D(gl, _glu) {
+  glu = _glu;
+
+  glt = new _GLTexture(textureArray, TEXTURE_NUM);
+  glt.use(TEXTURE_JIKI_JET, true);
+
+  var fieldOfView = (45 * Math.PI) / 180; // 視野角（ラジアン）
+  var aspect = getWidth() / getHeight(); // 幅と高さの比率はキャンバスの表示サイズに合わせる
+  var zNear = 0.1; // 表示するオブジェクトの範囲（手前）
+  var zFar = 1000.0; // 表示するオブジェクトの範囲（奥）
+  var t = Math.tan(fieldOfView / 2) * zNear;
+  var b = -t;
+  var r = t * aspect;
+  var l = -r;
+  glu.setIdentity();
+  glu.frustum(l, r, b, t, zNear, zFar);
+  projMatrix = glu.glMatrix();
+
+  shader = new _GLShader(vsSourceColor, fsSourceColor, true);
+  shaderSprite = new _GLShader(vsSourceSprite, fsSourceSprite, true);
+
+  shader.use();
+  gl.uniform3fv(shader.vars.uDirectionalLightColor, [0.5, 0.5, 0.5]);
+  gl.uniform3fv(shader.vars.uDirectionalLightPosition, [-0.85, 0.8, -0.75]);
+  gl.uniform3fv(shader.vars.uAmbientLightColor, [0.6, 0.6, 0.6]);
+  var eyeDirection = [
+    -projMatrix[ 2],
+    -projMatrix[ 6],
+    -projMatrix[10]
+  ];
+  gl.uniform3fv(shader.vars.uEyeDirection, eyeDirection);
+  gl.uniform3fv(shader.vars.uSpecularLightColor, [1.0, 1.0, 1.0]);
+  gl.uniform3fv(shader.vars.uFogColor, [1.0, 1.0, 1.0]);
+  gl.uniform1f(shader.vars.uFogNear, 50.0);
+  gl.uniform1f(shader.vars.uFogFar, 500.0);
+
+  shaderSprite.use();
+  gl.uniform1i(shaderSprite.vars.uSampler, 0/*TEXTURE0*/);
+
+  model[MODEL_GROUND] = createGLModel(modelSrc[MODEL_GROUND], 6.0, MODEL_GROUND, true, false);
+  model[MODEL_JIKI] = createGLModel(modelSrc[MODEL_JIKI], 0.01, MODEL_JIKI, true, false);
+
+  // 噴射
+  var coord = new Array(12);
+  coord[ 0] = -0.5; coord[ 1] = -0.5; coord[ 2] = 0.0;
+  coord[ 3] =  0.5; coord[ 4] = -0.5; coord[ 5] = 0.0;
+  coord[ 6] = -0.5; coord[ 7] =  0.5; coord[ 8] = 0.0;
+  coord[ 9] =  0.5; coord[10] =  0.5; coord[11] = 0.0;
+  var map = new Array(8);
+  map[0] =   0; map[1] = 128;
+  map[2] = 128; map[3] = 128;
+  map[4] =   0; map[5] =   0;
+  map[6] = 128; map[7] =   0;
+  glsJet = new _GLSprite(MODEL_NUM + TEXTURE_JIKI_JET, false); // idをMODEL_NUM以上の値に
+  glsJet.setCoord(coord);
+  glsJet.setMap(map);
+
+  // 自機
+  jiki = new Jiki();
+
+  // 噴射
+  jikiJet = new _Vector(16);
+
+  return true;
+}
+
+function init2D(g) {
+  if (calcFps) {
+    myStartCalcFps();
+  }
+}
+
+function clear2D(g) {
+  g.setColor(g.getColorOfRGBA(255, 255, 255, 0));
+  g.fillRect(0, 0, getWidth(), getHeight());
+  g.setColor(g.getColorOfRGB(0, 0, 0));
+  g.drawRect(0, 0, getWidth() - 1, getHeight() - 1);
+}
+
+function paint3D(gl, glu) {
+  var i;
+
+  for (var frame = 0; frame < frameCount(); frame++) {
+    if (frame != 0) {
+      elapse++;
+    }
+
+    var key = getKeypadState();
+    jiki.update(
+      (key & keyBit(window._KEY_UP   )) != 0,
+      (key & keyBit(window._KEY_DOWN )) != 0,
+      (key & keyBit(window._KEY_LEFT )) != 0,
+      (key & keyBit(window._KEY_RIGHT)) != 0
+    );
+
+    // 噴射の追加
+    if (_MOD(elapse, _DIV(WAIT_1, 15)) == 0) {
+      var vx = -jiki.vx() / WAIT_1/*フレーム数に比例した値*/;
+      var vy = -jiki.vy() / WAIT_1/*フレーム数に比例した値*/;
+      var vz = -jiki.vz() / WAIT_1/*フレーム数に比例した値*/;
+
+      glu.setIdentity();
+      glu.rotate(jiki.ry(), 0.0, 1.0, 0.0);
+      glu.rotate(-jiki.rx(), 1.0, 0.0, 0.0);
+      glu.rotate(-jiki.rz(), 0.0, 0.0, 1.0);
+
+      glu.transVector(1.0, 0.0, 0.0);
+      jikiJet.addElement(new JikiJet(
+        jiki.x() - jiki.vx() * 1.5 + glu.transX(),
+        jiki.y() - jiki.vy() * 1.5 + glu.transY(),
+        jiki.z() - jiki.vz() * 1.5 + glu.transZ(),
+        vx, vy, vz
+      ));
+
+      glu.transVector(-1.0, 0.0, 0.0);
+      jikiJet.addElement(new JikiJet(
+        jiki.x() - jiki.vx() * 1.5 + glu.transX(),
+        jiki.y() - jiki.vy() * 1.5 + glu.transY(),
+        jiki.z() - jiki.vz() * 1.5 + glu.transZ(),
+        vx, vy, vz
+      ));
+    }
+
+    // 噴射の更新
+    for (i = jikiJet.size() - 1; i >= 0; i--) {
+      var tmp = jikiJet.elementAt(i);
+      if (!tmp.update()) {
+        jikiJet.removeElementAt(i);
+      }
+    }
+  }
+
+  // ビュー座標変換行列
+  var camera_vx = -jiki.vx() * 10.0;
+  var camera_vy = -jiki.vy() * 10.0;
+  var camera_vz = -jiki.vz() * 10.0;
+  var look_x = jiki.x();
+  var look_y = jiki.y();
+  var look_z = jiki.z();
+  var camera_x = look_x + camera_vx;
+  var camera_y = look_y + camera_vy;
+  var camera_z = look_z + camera_vz;
+  if (lookDown) {
+    look_x += jiki.vx() * 10.0;
+    look_y += jiki.vy() * 10.0;
+    look_z += jiki.vz() * 10.0;
+    camera_y += 30.0;
+  } else {
+    look_y += 1.0; // 自機の少し上
+    camera_y += 2.0; // 少し上から見下ろす
+  }
+  glu.lookAt(camera_x, camera_y, camera_z, look_x, look_y, look_z, 0.0, 1.0, 0.0);
+  viewMatrix = glu.glMatrix();
+
+  // ビュー×プロジェクション座標変換行列
+  glu.set(glu.utMatrix(projMatrix));
+  glu.multiply(glu.utMatrix(viewMatrix));
+  viewProjMatrix = glu.glMatrix();
+  shader.use();
+  gl.uniformMatrix4fv(shader.vars.uViewProjMatrix, false, viewProjMatrix);
+  shaderSprite.use();
+  gl.uniformMatrix4fv(shaderSprite.vars.uViewProjMatrix, false, viewProjMatrix);
+
+  gl.enable(gl.CULL_FACE); // 裏面を表示しない
+
+  gl.enable(gl.DEPTH_TEST); // 深度テストを有効化
+  gl.depthFunc(gl.LEQUAL); // 奥にあるものは隠れるようにする
+  gl.depthMask(true);
+
+  gl.enable(gl.BLEND);
+  gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE);
+
+  gl.clearColor(1.0, 1.0, 1.0, 1.0);
+  gl.clearDepth(1.0);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  var gld = new _GLDraw(null, false/*スプライト用行列にビュー行列を含めない*/);
+
+  // 地面
+  var ground_x = _DIV(jiki.x(), GROUND_SIZE) * GROUND_SIZE;
+  var ground_z = _DIV(jiki.z(), GROUND_SIZE) * GROUND_SIZE;
+  for (var z = -1; z <= 1; z++) {
+    for (var x = -1; x <= 1; x++) {
+      glu.setIdentity();
+      glu.translate(ground_x + GROUND_SIZE * x, 0.0, ground_z + GROUND_SIZE * z);
+      gld.add(model[MODEL_GROUND], -1, -1, glu.glMatrix(), -1);
+    }
+  }
+
+  // 自機
+  jiki.draw(gld);
+
+  // 噴射
+  for (i = jikiJet.size() - 1; i >= 0; i--) {
+    var tmp = jikiJet.elementAt(i);
+    tmp.draw(gld);
+  }
+
+  gld.draw(glt);
+
+  elapse++;
+}
+
+function paint2D(g) {
+  if (calcFps) {
+    myDrawFps(g);
+  }
+
+  myScreenshot2D();
+}
+
+// _GLTexture用
+function glTextureAlphaFlag(index) {
+  return true;
+}
+function glTextureDepthFlag(index) {
+  return true;
+}
+function glTextureFlipY(index) {
+  return false;
+}
+function glTextureFilter(gl, index) {
+  return gl.LINEAR;
+}
+function glTextureWrap(gl, index) {
+  return gl.CLAMP_TO_EDGE;
+}
+
+// _GLModel用
+function glModelActiveTexture(gl, id) {
+  return gl.TEXTURE0;
+}
+function glModelBindPositionBuffer(gl, id, lighting) {
+  _GLShader.bindPositionBuffer(shader.vars.aVertexPosition);
+}
+function glModelBindNormalBuffer(gl, id, lighting) {
+  _GLShader.bindNormalBuffer(shader.vars.aVertexNormal);
+}
+function glModelBindColorBuffer(gl, id, lighting) {
+  _GLShader.bindColorBuffer(shader.vars.aVertexColor);
+}
+function glModelBindTextureCoordBuffer(gl, id, lighting) {
+}
+function glModelSetTexture(gl, glt, index, tex_index, id, lighting) {
+  return false;
+}
+function glModelBeginDraw(gl, glt, index, tex_index, id, lighting, material_diffuse, material_ambient, material_emission, material_specular, material_shininess) {
+  if (id >= MODEL_NUM) {
+  } else {
+    gl.uniform1i(shader.vars.uFog, (id == MODEL_GROUND) ? true : false);
+
+    var data = [
+      1.5, 1.5, 1.5, // diffuse
+      0.8, 0.8, 0.8, // ambient
+      0.1, 0.1, 0.1, // specular
+      50.0 // shininess
+    ];
+    gl.uniform3fv(shader.vars.uDiffuse, [data[0], data[1], data[2]]);
+    gl.uniform3fv(shader.vars.uAmbient, [data[3], data[4], data[5]]);
+    gl.uniform3fv(shader.vars.uSpecular, [data[6], data[7], data[8]]);
+    gl.uniform1f(shader.vars.uShininess, data[9]);
+  }
+
+  return true;
+}
+function glModelEndDraw(gl, glt, index, tex_index, id, lighting) {
+}
+
+// _GLSprite用
+function glSpriteActiveTexture(gl, id) {
+  return gl.TEXTURE0;
+}
+function glSpriteBindPositionBuffer(gl, id) {
+  _GLShader.bindPositionBuffer(shaderSprite.vars.aVertexPosition);
+}
+function glSpriteBindTextureCoordBuffer(gl, id) {
+  _GLShader.bindTextureCoordBuffer(shaderSprite.vars.aTextureCoord);
+}
+function glSpriteSetTexture(gl, glt, tex_index, id) {
+  return false;
+}
+
+// _GLDraw用
+function glDrawUseProgram(gl, p, index) {
+  if (p.id() >= MODEL_NUM) {
+    shaderSprite.use();
+  } else {
+    shader.use();
+  }
+}
+function glDrawSetProjectionMatrix(gl, mat, p, index) {
+}
+function glDrawSetModelViewMatrix(gl, mat, p, index) {
+  if (p.id() >= MODEL_NUM) {
+    gl.uniformMatrix4fv(shaderSprite.vars.uModelMatrix, false, mat);
+  } else {
+    gl.uniformMatrix4fv(shader.vars.uModelMatrix, false, mat);
+    glu.push();
+    glu.set(glu.utMatrix(mat));
+    glu.invert(); // 逆行列
+    gl.uniformMatrix4fv(shader.vars.uInvMatrix, false, glu.glMatrix());
+    glu.transpose(); // 行列の転置
+    gl.uniformMatrix4fv(shader.vars.uNormalMatrix, false, glu.glMatrix());
+    glu.set(glu.utMatrix(viewMatrix));
+    glu.multiply(glu.utMatrix(mat));
+    gl.uniformMatrix4fv(shader.vars.uModelViewMatrix, false, glu.glMatrix());
+    glu.pop();
+  }
+}
+
+function processEvent(type, param) {
+  switch (type) {
+  case window._KEY_PRESSED_EVENT:
+    if (param == window._KEY_S) {
+      myScreenshot();
+    }
+    break;
+  }
+}
+
+function error() {
+}
+
+var GROUND_SIZE = 1200.0;
+
+var JIKI_Y_MIN = 20.0;
+var JIKI_Y_MAX = 100.0;
+var JIKI_RX_MAX = 60.0;
+var JIKI_RZ_MAX = 45.0;
+
+var JIKI_SPEED = 1.0;
+var JIKI_RX_ADD = 0.1;
+var JIKI_RX_ADD_MAX = 0.5;
+var JIKI_RY_ADD = 0.1;
+var JIKI_RY_ADD_MAX = 0.5;
+var JIKI_RZ_ADD = 1.0;
+var JIKI_RX_ADD2 = 1.0;
+
+var JIKI_JET_FRAME = _DIV(WAIT_1, 4);
+
+// 自機
+function Jiki() {
+  this._x = 0.0;
+  this._y = 50.0;
+  this._z = 0.0;
+  this._rx = 0.0;
+  this._ry = 0.0;
+  this._rz = 0.0;
+  this._rx_add = 0.0;
+  this._ry_add = 0.0;
+
+  glu.setIdentity();
+  glu.rotate(this._ry, 0.0, 1.0, 0.0);
+  glu.rotate(this._rx, 1.0, 0.0, 0.0);
+  glu.transVector(0.0, 0.0, -1.0);
+  this._vx = glu.transX();
+  this._vy = glu.transY();
+  this._vz = glu.transZ();
+}
+Jiki.prototype = {
+
+  update : function(up, down, left, right) {
+    var rx_flag = false;
+    var ry_flag = false;
+    var rz_flag = false;
+    if (up) {
+      if (this._y < JIKI_Y_MAX) {
+        if (this._rx_add < JIKI_RX_ADD_MAX) {
+          this._rx_add += JIKI_RX_ADD;
+          if (this._rx_add > JIKI_RX_ADD_MAX) {
+            this._rx_add = JIKI_RX_ADD_MAX;
+          }
+        }
+        rx_flag = true;
+      }
+    }
+    if (down) {
+      if (this._y > JIKI_Y_MIN) {
+        if (this._rx_add > -JIKI_RX_ADD_MAX) {
+          this._rx_add -= JIKI_RX_ADD;
+          if (this._rx_add < -JIKI_RX_ADD_MAX) {
+            this._rx_add = -JIKI_RX_ADD_MAX;
+          }
+        }
+        rx_flag = true;
+      }
+    }
+    if (left) {
+      if (this._ry_add < JIKI_RY_ADD_MAX) {
+        this._ry_add += JIKI_RY_ADD;
+      }
+      ry_flag = true;
+
+      if (this._rz < -JIKI_RZ_MAX) {
+        this._rz += JIKI_RZ_ADD;
+        if (this._rz > -JIKI_RZ_MAX) {
+          this._rz = -JIKI_RZ_MAX;
+        }
+      } else {
+        this._rz -= JIKI_RZ_ADD;
+        if (this._rz < -JIKI_RZ_MAX) {
+          this._rz = -JIKI_RZ_MAX;
+        }
+      }
+      rz_flag = true;
+    }
+    if (right) {
+      if (this._ry_add > -JIKI_RY_ADD_MAX) {
+        this._ry_add -= JIKI_RY_ADD;
+      }
+      ry_flag = true;
+
+      if (this._rz > JIKI_RZ_MAX) {
+        this._rz -= JIKI_RZ_ADD;
+        if (this._rz < JIKI_RZ_MAX) {
+          this._rz = JIKI_RZ_MAX;
+        }
+      } else {
+        this._rz += JIKI_RZ_ADD;
+        if (this._rz > JIKI_RZ_MAX) {
+          this._rz = JIKI_RZ_MAX;
+        }
+      }
+      rz_flag = true;
+    }
+
+    if (!rx_flag) {
+      if (this._rx_add > 0.0) {
+        this._rx_add -= JIKI_RX_ADD;
+        if (this._rx_add < 0.0) {
+          this._rx_add = 0.0;
+        }
+      } else if (this._rx_add < 0.0) {
+        this._rx_add += JIKI_RX_ADD;
+        if (this._rx_add > 0.0) {
+          this._rx_add = 0.0;
+        }
+      }
+    }
+    this._rx += this._rx_add;
+    if (this._rx < -JIKI_RX_MAX) {
+      this._rx = -JIKI_RX_MAX;
+    }
+    if (this._rx > JIKI_RX_MAX) {
+      this._rx = JIKI_RX_MAX;
+    }
+
+    if (!ry_flag) {
+      if (this._ry_add > 0.0) {
+        this._ry_add -= JIKI_RY_ADD;
+        if (this._ry_add < 0.0) {
+          this._ry_add = 0.0;
+        }
+      } else if (this._ry_add < 0.0) {
+        this._ry_add += JIKI_RY_ADD;
+        if (this._ry_add > 0.0) {
+          this._ry_add = 0.0;
+        }
+      }
+    }
+    this._ry += this._ry_add;
+    if (this._ry < 0.0) {
+      this._ry += 360.0;
+    }
+    if (this._ry > 360.0) {
+      this._ry -= 360.0;
+    }
+
+    if (!rz_flag) {
+      if (this._rz >= 180) {
+        this._rz -= 360;
+      } else if (this._rz <= -180) {
+        this._rz += 360;
+      }
+      if (this._rz >= JIKI_RZ_ADD) {
+        this._rz -= JIKI_RZ_ADD;
+      } else if (this._rz <= -JIKI_RZ_ADD) {
+        this._rz += JIKI_RZ_ADD;
+      } else {
+        this._rz = 0.0;
+      }
+    }
+
+    glu.setIdentity();
+    glu.rotate(this._ry, 0.0, 1.0, 0.0);
+    glu.rotate(this._rx, 1.0, 0.0, 0.0);
+    glu.transVector(0.0, 0.0, -1.0);
+    this._vx = glu.transX();
+    this._vy = glu.transY();
+    this._vz = glu.transZ();
+    this._x += this._vx * JIKI_SPEED;
+    this._y += this._vy * JIKI_SPEED;
+    this._z += this._vz * JIKI_SPEED;
+    if (this._y < JIKI_Y_MIN) {
+      this._y = JIKI_Y_MIN;
+      if (this._rx < 0.0) {
+        this._rx += JIKI_RX_ADD2;
+        if (this._rx > 0.0) {
+          this._rx = 0.0;
+        }
+      }
+    }
+    if (this._y > JIKI_Y_MAX) {
+      this._y = JIKI_Y_MAX;
+      if (this._rx > 0.0) {
+        this._rx -= JIKI_RX_ADD2;
+        if (this._rx < 0.0) {
+          this._rx = 0.0;
+        }
+      }
+    }
+  },
+
+  x : function() {
+    return this._x;
+  },
+  y : function() {
+    return this._y;
+  },
+  z : function() {
+    return this._z;
+  },
+  vx : function() {
+    return this._vx;
+  },
+  vy : function() {
+    return this._vy;
+  },
+  vz : function() {
+    return this._vz;
+  },
+  rx : function() {
+    return this._rx;
+  },
+  ry : function() {
+    return this._ry;
+  },
+  rz : function() {
+    return this._rz;
+  },
+  rx_add : function() {
+    return this._rx_add;
+  },
+  ry_add : function() {
+    return this._ry_add;
+  },
+
+  draw : function(gld) {
+    glu.setIdentity();
+    glu.translate(this._x, this._y, this._z);
+    glu.rotate(this._ry + 180.0, 0.0, 1.0, 0.0);
+    glu.rotate(-this._rx, 1.0, 0.0, 0.0);
+    glu.rotate(this._rz, 0.0, 0.0, 1.0);
+    var mat = glu.glMatrix();
+    gld.add(model[MODEL_JIKI], -1, -1, mat, -1);
+  },
+
+};
+
+// 噴射
+function JikiJet(x, y, z, vx, vy, vz) {
+  this._x = x;
+  this._y = y;
+  this._z = z;
+  this._vx = vx;
+  this._vy = vy;
+  this._vz = vz;
+  this._elapse = 0;
+}
+JikiJet.prototype = {
+
+  update : function() {
+    this._x += this._vx;
+    this._y += this._vy;
+    this._z += this._vz;
+    this._elapse++;
+    if (this._elapse > JIKI_JET_FRAME) {
+      return false;
+    }
+    return true;
+  },
+
+  x : function() {
+    return this._x;
+  },
+  y : function() {
+    return this._y;
+  },
+  z : function() {
+    return this._z;
+  },
+  elapse : function() {
+    return this._elapse;
+  },
+  trans : function() {
+    return (1.0 / JIKI_JET_FRAME) * (JIKI_JET_FRAME - (this._elapse - 1));
+  },
+
+  draw : function(gld) {
+    gld.addSprite(glsJet, TEXTURE_JIKI_JET, this._x, this._y, this._z, this.trans());
+  },
+
+};
+
+</script>
+</head>
+<body>
+<div align="center">
+  <div style="position:relative">
+    <canvas id="hoge_canvas" style="position:absolute; left:50%; transform:translate(-50%, 0)" width="640" height="480"></canvas>
+    <canvas id="fuga_canvas" style="position:absolute; left:50%; transform:translate(-50%, 0)" width="640" height="480"></canvas>
+  </div>
+</div>
+</body>
+</html>
