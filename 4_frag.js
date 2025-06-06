@@ -39,11 +39,12 @@ var fsSourceColor = `
     highp float powCosAngle = pow(clamp(dot(normal, halfVector), 0.0, 1.0), uShininess); // 内積によって得られた結果をべき乗によって収束させる
     highp vec3 specular = (uSpecularLightColor * uSpecular) * powCosAngle;
 
-    if (bool(uFog)) {
-      float fogAmount = smoothstep(uFogNear, uFogFar, vFogDepth);
-      gl_FragColor = vec4(mix(vColor.rgb * (diffuse + ambient + specular), uFogColor, fogAmount), vColor.a);
-    } else {
-      gl_FragColor = vec4(vColor.rgb * (diffuse + ambient + specular), vColor.a);
-    }
+    //if (bool(uFog)) {
+    //  float fogAmount = smoothstep(uFogNear, uFogFar, vFogDepth);
+    //  gl_FragColor = vec4(mix(vColor.rgb * (diffuse + ambient + specular), uFogColor, fogAmount), vColor.a);
+    //} else {
+    //  gl_FragColor = vec4(vColor.rgb * (diffuse + ambient + specular), vColor.a);
+    //}
+    gl_FragColor = bool(uFog) ? vec4(mix(vColor.rgb * (diffuse + ambient + specular), uFogColor, smoothstep(uFogNear, uFogFar, vFogDepth)), vColor.a) : vec4(vColor.rgb * (diffuse + ambient + specular), vColor.a);
   }
 `;

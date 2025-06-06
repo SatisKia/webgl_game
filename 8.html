@@ -204,7 +204,8 @@ function addEnemy02(flag) {
   if (flag == undefined) {
     flag = (rand.nextInt() < 0);
   }
-  glu.rotate(flag ? -30.0 : 30.0, 0.0, 1.0, 0.0);
+  var add = jiki.ry_add() * 70.0; // 自機の旋回に合わせて位置をずらす
+  glu.rotate((flag ? -30.0 : 30.0) + add, 0.0, 1.0, 0.0);
   glu.transVector(x, 0.0, z);
   x = glu.transX() + jiki.x() + _MOD(rand.nextInt(), 10);
   z = glu.transZ() + jiki.z() + _MOD(rand.nextInt(), 10);
@@ -602,10 +603,7 @@ function paint3D(gl, glu) {
     for (i = enemyShot.size() - 1; i >= 0; i--) {
       var tmp = enemyShot.elementAt(i);
       if (checkHit(tmp.x(), tmp.y(), tmp.z(), tmp.radius(), jiki.x(), jiki.y(), jiki.z(), jiki.radius())) {
-        var x = jiki.x();
-        var y = jiki.y();
-        var z = jiki.z();
-        addBaku(x, y, z);
+        addBaku(jiki.x(), jiki.y(), jiki.z());
         enemyShot.removeElementAt(i);
       }
     }
@@ -817,6 +815,7 @@ function paint3D(gl, glu) {
     var tmp = enemyShot.elementAt(i);
     tmp.draw(gld);
     drawHit(tmp.x(), tmp.y(), tmp.z(), tmp.radius());
+    drawTarget(tmp.tx(), tmp.ty(), tmp.tz());
   }
 
   gld.draw(glt);
