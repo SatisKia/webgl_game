@@ -80,12 +80,6 @@ function init3D(gl, _glu) {
   gl.uniform3fv(shader.vars.uDirectionalLightColor, [0.5, 0.5, 0.5]);
   gl.uniform3fv(shader.vars.uDirectionalLightPosition, [-0.85, 0.8, -0.75]);
   gl.uniform3fv(shader.vars.uAmbientLightColor, [0.6, 0.6, 0.6]);
-  var eyeDirection = [
-    -projMatrix[ 2],
-    -projMatrix[ 6],
-    -projMatrix[10]
-  ];
-  gl.uniform3fv(shader.vars.uEyeDirection, eyeDirection);
   gl.uniform3fv(shader.vars.uSpecularLightColor, [1.0, 1.0, 1.0]);
 
   model[MODEL_GROUND] = createGLModel(modelSrc[MODEL_GROUND], 6.0, MODEL_GROUND, true, false);
@@ -130,6 +124,15 @@ function paint3D(gl, glu) {
   viewProjMatrix = glu.glMatrix();
   shader.use();
   gl.uniformMatrix4fv(shader.vars.uViewProjMatrix, false, viewProjMatrix);
+
+  // 視線ベクトル
+  glu.normalize(
+    -viewProjMatrix[ 2],
+    -viewProjMatrix[ 6],
+    -viewProjMatrix[10]
+  );
+  var eyeDirection = [glu.normalize_x, glu.normalize_y, glu.normalize_z];
+  gl.uniform3fv(shader.vars.uEyeDirection, eyeDirection);
 
   gl.enable(gl.CULL_FACE); // 裏面を表示しない
 
@@ -206,11 +209,17 @@ function glDrawSetProjectionMatrix(gl, mat, p, index) {
 function glDrawSetModelViewMatrix(gl, mat, p, index) {
   gl.uniformMatrix4fv(shader.vars.uModelMatrix, false, mat);
   glu.push();
+
   glu.set(glu.utMatrix(mat));
   glu.invert(); // 逆行列
-  gl.uniformMatrix4fv(shader.vars.uInvMatrix, false, glu.glMatrix());
   glu.transpose(); // 行列の転置
   gl.uniformMatrix4fv(shader.vars.uNormalMatrix, false, glu.glMatrix());
+
+  glu.set(glu.utMatrix(viewMatrix));
+  glu.multiply(glu.utMatrix(mat));
+  glu.invert(); // 逆行列
+  gl.uniformMatrix4fv(shader.vars.uInvMatrix, false, glu.glMatrix());
+
   glu.pop();
 }
 

@@ -66,12 +66,6 @@ function init3D(gl, _glu) {
   gl.uniform3fv(shader.vars.uDirectionalLightColor, [0.5, 0.5, 0.5]);
   gl.uniform3fv(shader.vars.uDirectionalLightPosition, [-0.85, 0.8, -0.75]);
   gl.uniform3fv(shader.vars.uAmbientLightColor, [0.6, 0.6, 0.6]);
-  var eyeDirection = [
-    -projMatrix[ 2],
-    -projMatrix[ 6],
-    -projMatrix[10]
-  ];
-  gl.uniform3fv(shader.vars.uEyeDirection, eyeDirection);
   gl.uniform3fv(shader.vars.uSpecularLightColor, [1.0, 1.0, 1.0]);
 
   return true;
@@ -110,6 +104,15 @@ function paint3D(gl, glu) {
   viewProjMatrix = glu.glMatrix();
   shader.use();
   gl.uniformMatrix4fv(shader.vars.uViewProjMatrix, false, viewProjMatrix);
+
+  // 視線ベクトル
+  glu.normalize(
+    -viewProjMatrix[ 2],
+    -viewProjMatrix[ 6],
+    -viewProjMatrix[10]
+  );
+  var eyeDirection = [glu.normalize_x, glu.normalize_y, glu.normalize_z];
+  gl.uniform3fv(shader.vars.uEyeDirection, eyeDirection);
 
   gl.enable(gl.CULL_FACE); // 裏面を表示しない
 
