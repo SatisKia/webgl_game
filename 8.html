@@ -961,7 +961,6 @@ function glDrawSetModelViewMatrix(gl, mat, p, index) {
     gl.uniformMatrix4fv(shader.vars.uModelMatrix, false, mat);
     glu.push();
     glu.set(glu.utMatrix(mat));
-    gl.uniformMatrix4fv(shader.vars.uModelViewMatrix, false, glu.glMatrix());
     glu.invert(); // 逆行列
     gl.uniformMatrix4fv(shader.vars.uInvMatrix, false, glu.glMatrix());
     glu.transpose(); // 行列の転置
