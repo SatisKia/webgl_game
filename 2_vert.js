@@ -16,6 +16,6 @@ var vsSourceColor = `
 
     vColor = aVertexColor;
 
-    vNormal = vec3(uNormalMatrix * vec4(aVertexNormal, 1.0));
+    vNormal = vec3(uNormalMatrix * vec4(aVertexNormal, 0.0));
   }
 `;

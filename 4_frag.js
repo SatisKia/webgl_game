@@ -1,8 +1,6 @@
 var fsSourceColor = `
   precision mediump float;
 
-  uniform mat4 uInvMatrix;
-
   uniform vec3 uDirectionalLightColor;
   uniform vec3 uDirectionalLightPosition;
 
@@ -27,15 +25,14 @@ var fsSourceColor = `
 
   void main(void) {
     highp vec3 normal = normalize(vNormal);
-
     highp vec3 directionalLightPosition = normalize(uDirectionalLightPosition);
+
     highp float cosAngle = clamp(dot(normal, directionalLightPosition), 0.0, 1.0); // ベクトルの内積
     highp vec3 diffuse = (uDirectionalLightColor * uDiffuse) * cosAngle;
 
     lowp vec3 ambient = uAmbientLightColor * uAmbient;
 
-    highp vec3 invLight = normalize(uInvMatrix * vec4(uDirectionalLightPosition, 0.0)).xyz;
-    highp vec3 halfVector = normalize(invLight + uEyeDirection);
+    highp vec3 halfVector = normalize(directionalLightPosition + uEyeDirection);
     highp float powCosAngle = pow(clamp(dot(normal, halfVector), 0.0, 1.0), uShininess); // 内積によって得られた結果をべき乗によって収束させる
     highp vec3 specular = (uSpecularLightColor * uSpecular) * powCosAngle;
 

@@ -107,9 +107,9 @@ function paint3D(gl, glu) {
 
   // 視線ベクトル
   glu.normalize(
-    -viewProjMatrix[ 2],
-    -viewProjMatrix[ 6],
-    -viewProjMatrix[10]
+    viewMatrix[ 2],
+    viewMatrix[ 6],
+    viewMatrix[10]
   );
   var eyeDirection = [glu.normalize_x, glu.normalize_y, glu.normalize_z];
   gl.uniform3fv(shader.vars.uEyeDirection, eyeDirection);

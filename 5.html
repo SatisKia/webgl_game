@@ -154,9 +154,9 @@ function paint3D(gl, glu) {
 
   // 視線ベクトル
   glu.normalize(
-    -viewProjMatrix[ 2],
-    -viewProjMatrix[ 6],
-    -viewProjMatrix[10]
+    viewMatrix[ 2],
+    viewMatrix[ 6],
+    viewMatrix[10]
   );
   var eyeDirection = [glu.normalize_x, glu.normalize_y, glu.normalize_z];
   gl.uniform3fv(shader.vars.uEyeDirection, eyeDirection);
@@ -249,7 +249,6 @@ function glDrawSetModelViewMatrix(gl, mat, p, index) {
   glu.push();
   glu.set(glu.utMatrix(mat));
   glu.invert(); // 逆行列
-  gl.uniformMatrix4fv(shader.vars.uInvMatrix, false, glu.glMatrix());
   glu.transpose(); // 行列の転置
   gl.uniformMatrix4fv(shader.vars.uNormalMatrix, false, glu.glMatrix());
 
