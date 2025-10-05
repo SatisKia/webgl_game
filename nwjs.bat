@@ -17,8 +17,8 @@ copy model_jiki_shot.js build\tmp
 copy model_enemy01.js   build\tmp
 copy model_enemy02.js   build\tmp
 copy texture.js         build\tmp
-copy index.js           build\tmp
-copy package.json       build\tmp
+copy nwjs\index.js      build\tmp
+copy nwjs\package.json  build\tmp
 copy mp3\*.*            build\tmp\mp3
 
 cd build\tmp
