@@ -1,13 +1,4 @@
 {
-  "name": "webgl_game",
-  "version": "0.0.1",
-  "main": "8.html",
-  "window": {
-    "width": 640,
-    "height": 480,
-    "resizable": false
-  },
-  "chromium-args": "--disable-devtools",
   "scripts": {
     "start": ".\\node_modules\\.bin\\nw ."
   },
