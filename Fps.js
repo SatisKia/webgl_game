@@ -23,7 +23,7 @@ function myCalcFps() {
 function myDrawFps(g) {
   var w = getWidth () - 1;
   var h = getHeight() - 1;
-  g.setFont(16, "ＭＳ ゴシック");
+  g.setFont(16, [ "MS Gothic", "sans-serif" ]);
   g.setColor(g.getColorOfRGB(0, 0, 0));
   var str = "" + _INT(myCalcFps()) + " fps";
   g.drawString(str, w - g.stringWidth(str), h);

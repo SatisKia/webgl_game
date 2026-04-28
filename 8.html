@@ -275,7 +275,7 @@ function drawTarget(x, y, z) {
   x = projectX;
   y = getHeight() - projectY;
   var g = getGraphics();
-  g.setFont(16, "ＭＳ ゴシック");
+  g.setFont(16, [ "MS Gothic", "sans-serif" ]);
   g.setColor(g.getColorOfRGB(255, 0, 255));
   g.drawString("＋", x - 8, y + 8);
 }
@@ -797,7 +797,7 @@ function paint3D(gl, glu) {
       x = projectX;
       y = getHeight() - projectY;
       var g = getGraphics();
-      g.setFont(8, "ＭＳ ゴシック");
+      g.setFont(8, [ "MS Gothic", "sans-serif" ]);
       g.setColor(g.getColorOfRGB(0, 255, 255));
       z = 50 - distance;
       if (z < 15) {
@@ -830,7 +830,7 @@ function paint3D(gl, glu) {
 
 function paint2D(g) {
   if (useGamepad && (step < 5)) {
-    g.setFont(24, "ＭＳ ゴシック");
+    g.setFont(24, [ "MS Gothic", "sans-serif" ]);
     g.setColor(g.getColorOfRGB(0, 0, 0));
     switch (step) {
     case 0: g.drawString("パッド上を入力してください", 0, 24); break;
@@ -849,7 +849,7 @@ function paint2D(g) {
   }
 
   if (!lookDown) {
-    g.setFont(24, "ＭＳ ゴシック");
+    g.setFont(24, [ "MS Gothic", "sans-serif" ]);
     g.setColor(g.getColorOfRGB(0, 0, 0));
     var str = "" + score;
     g.drawString("SCORE", 0, 24);
