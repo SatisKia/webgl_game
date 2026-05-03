@@ -14,6 +14,28 @@ var fsSourceShadowmap = `
   }
 `;
 
+var fsSourceShadowmapSprite = `
+  precision mediump float;
+
+  uniform sampler2D uSampler;
+  uniform int uHighPrecision;
+  uniform int uTextureFloat;
+
+  varying highp vec2 vTextureCoord;
+
+  void main(void) {
+    if (texture2D(uSampler, vTextureCoord).a <= 0.0) { // 完全透明だけを捨てる
+      discard; // そのピクセルではカラー・深度とも更新しない
+    }
+    float z = gl_FragCoord.z;
+    gl_FragColor = (!bool(uHighPrecision) || bool(uTextureFloat)) ? vec4(z, 0.0, 0.0, 1.0) : vec4(
+      clamp((z - 0.75) * 4.0, 0.0, 1.0),
+      clamp((z - 0.5 ) * 4.0, 0.0, 1.0),
+      clamp((z - 0.25) * 4.0, 0.0, 1.0),
+      clamp((z - 0.0 ) * 4.0, 0.0, 1.0));
+  }
+`;
+
 var fsSourceColor = `
   precision mediump float;
 

@@ -135,6 +135,7 @@ var elapse = 0;
 var shadowFlag = false;
 var shadowFrameBuffer = null;
 var shadowmapShader = null;
+var shadowmapSpriteShader = null;
 var depthProjMatrix;
 var depthViewMatrix;
 var depthViewProjMatrix;
@@ -548,6 +549,7 @@ function init3D(gl, _glu) {
   shaderSprite = new _GLShader(vsSourceSprite, fsSourceSprite, true);
   if (window.useShadow) {
     shadowmapShader = new _GLShader(vsSourceShadowmap, fsSourceShadowmap, true);
+    shadowmapSpriteShader = new _GLShader(vsSourceShadowmapSprite, fsSourceShadowmapSprite, true);
   }
 
   shader.use();
@@ -845,6 +847,12 @@ function paint3D(gl, glu) {
     gl.uniformMatrix4fv(shadowmapShader.vars.uLightMatrix, false, depthViewProjMatrix);
     gl.uniform1i(shadowmapShader.vars.uHighPrecision, window.useHighPrecision ? 1 : 0);
     gl.uniform1i(shadowmapShader.vars.uTextureFloat, shadowFrameBuffer.textureFloat ? 1 : 0);
+
+    shadowmapSpriteShader.use();
+    gl.uniformMatrix4fv(shadowmapSpriteShader.vars.uLightMatrix, false, depthViewProjMatrix);
+    gl.uniform1i(shadowmapSpriteShader.vars.uHighPrecision, window.useHighPrecision ? 1 : 0);
+    gl.uniform1i(shadowmapSpriteShader.vars.uTextureFloat, shadowFrameBuffer.textureFloat ? 1 : 0);
+    gl.uniform1i(shadowmapSpriteShader.vars.uSampler, 1/*TEXTURE1*/);
 
     shader.use();
     gl.uniformMatrix4fv(shader.vars.uLightMatrix, false, depthViewProjMatrix);
@@ -1149,10 +1157,18 @@ function glSpriteActiveTexture(gl, id) {
   return gl.TEXTURE1;
 }
 function glSpriteBindPositionBuffer(gl, id) {
-  _GLShader.bindPositionBuffer(shaderSprite.vars.aVertexPosition);
+  if (shadowFlag) {
+    _GLShader.bindPositionBuffer(shadowmapSpriteShader.vars.aVertexPosition);
+  } else {
+    _GLShader.bindPositionBuffer(shaderSprite.vars.aVertexPosition);
+  }
 }
 function glSpriteBindTextureCoordBuffer(gl, id) {
-  _GLShader.bindTextureCoordBuffer(shaderSprite.vars.aTextureCoord);
+  if (shadowFlag) {
+    _GLShader.bindTextureCoordBuffer(shadowmapSpriteShader.vars.aTextureCoord);
+  } else {
+    _GLShader.bindTextureCoordBuffer(shaderSprite.vars.aTextureCoord);
+  }
 }
 function glSpriteSetTexture(gl, glt, tex_index, id) {
   return false;
@@ -1161,7 +1177,11 @@ function glSpriteSetTexture(gl, glt, tex_index, id) {
 // _GLDraw用
 function glDrawUseProgram(gl, p, index) {
   if (shadowFlag) {
-    shadowmapShader.use();
+    if (p.id() >= MODEL_NUM) {
+      shadowmapSpriteShader.use();
+    } else {
+      shadowmapShader.use();
+    }
   } else if (p.id() >= MODEL_NUM) {
     shaderSprite.use();
   } else {
@@ -1172,7 +1192,11 @@ function glDrawSetProjectionMatrix(gl, mat, p, index) {
 }
 function glDrawSetModelViewMatrix(gl, mat, p, index) {
   if (shadowFlag) {
-    gl.uniformMatrix4fv(shadowmapShader.vars.uModelMatrix, false, mat);
+    if (p.id() >= MODEL_NUM) {
+      gl.uniformMatrix4fv(shadowmapSpriteShader.vars.uModelMatrix, false, mat);
+    } else {
+      gl.uniformMatrix4fv(shadowmapShader.vars.uModelMatrix, false, mat);
+    }
   } else if (p.id() >= MODEL_NUM) {
     gl.uniformMatrix4fv(shaderSprite.vars.uModelMatrix, false, mat);
   } else {

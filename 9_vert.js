@@ -10,6 +10,22 @@ var vsSourceShadowmap = `
   }
 `;
 
+var vsSourceShadowmapSprite = `
+  attribute vec3 aVertexPosition;
+  attribute vec2 aTextureCoord;
+
+  uniform mat4 uModelMatrix;
+  uniform mat4 uLightMatrix;
+
+  varying highp vec2 vTextureCoord;
+
+  void main(void) {
+    vec3 position = (uModelMatrix * vec4(aVertexPosition, 1.0)).xyz;
+    gl_Position = uLightMatrix * vec4(position, 1.0);
+    vTextureCoord = aTextureCoord;
+  }
+`;
+
 var vsSourceColor = `
   attribute vec3 aVertexPosition;
   attribute vec3 aVertexNormal;
