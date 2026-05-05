@@ -44,7 +44,7 @@ const createWindow = () => {
   mainWindow.setMinimumSize(windowSize[0], windowSize[1]);
   mainWindow.setMaximumSize(windowSize[0], windowSize[1]);
 
-  mainWindow.loadFile('8.html');
+  mainWindow.loadFile('9.html');
 }
 
 app.on("ready", createWindow);

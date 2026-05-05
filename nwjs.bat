@@ -1,16 +1,16 @@
 md build
 md build\tmp
 md build\tmp\mp3
-copy 8.html             build\tmp
+copy 9.html             build\tmp
 copy _Gamepad.js        build\tmp
 copy Fps.js             build\tmp
 copy Screenshot.js      build\tmp
 copy d2js.js            build\tmp
 copy d2js_gl.js         build\tmp
-copy 4_vert.js          build\tmp
-copy 4_frag.js          build\tmp
 copy 6_vert.js          build\tmp
 copy 6_frag.js          build\tmp
+copy 9_vert.js          build\tmp
+copy 9_frag.js          build\tmp
 copy model_ground.js    build\tmp
 copy model_jiki.js      build\tmp
 copy model_jiki_shot.js build\tmp

@@ -952,6 +952,7 @@ function myDraw(gld, draw2D) {
   var i;
 
   // 地面
+if (!shadowFlag) {
   var ground_x = _DIV(jiki.x(), GROUND_SIZE) * GROUND_SIZE;
   var ground_z = _DIV(jiki.z(), GROUND_SIZE) * GROUND_SIZE;
   for (var z = -1; z <= 1; z++) {
@@ -961,6 +962,7 @@ function myDraw(gld, draw2D) {
       gld.add(model[MODEL_GROUND], -1, -1, glu.glMatrix(), -1);
     }
   }
+}
 
   // 自機
   jiki.draw(gld);
@@ -969,10 +971,12 @@ if (draw2D) {
 }
 
   // 噴射
+if (!shadowFlag) {
   for (i = jikiJet.size() - 1; i >= 0; i--) {
     var tmp = jikiJet.elementAt(i);
     tmp.draw(gld);
   }
+}
 
   // 自弾
   glu.push();
@@ -1019,12 +1023,15 @@ if (draw2D) {
   }
 
   // 爆発
+if (!shadowFlag) {
   for (i = baku.size() - 1; i >= 0; i--) {
     var tmp = baku.elementAt(i);
     tmp.draw(gld);
   }
+}
 
   // 敵弾
+if (!shadowFlag) {
   for (i = enemyShot.size() - 1; i >= 0; i--) {
     var tmp = enemyShot.elementAt(i);
     tmp.draw(gld);
@@ -1033,6 +1040,7 @@ if (draw2D) {
     drawTarget(tmp.tx(), tmp.ty(), tmp.tz());
 }
   }
+}
 }
 
 function paint2D(g) {
