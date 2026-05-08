@@ -20,6 +20,24 @@
 <script type="text/javascript" src="texture.js"></script>
 <script type="text/javascript" src="index.js"></script>
 <script type="text/javascript">
+(function () {
+  function detectRuntime() {
+    // NW.js上で動作しているかの判定
+    var isNW = typeof window.nw === "object" || (window.nw && typeof window.nw.Window === "function");
+    if (isNW) return "nwjs";
+
+    // Electron上で動作しているかの判定
+    var ua = navigator.userAgent || "";
+    var hasProcess = typeof window.process === "object" && window.process;
+    var isElectron = ua.indexOf("Electron") !== -1 || (hasProcess && !!(window.process.versions && window.process.versions.electron));
+    if (isElectron) return "electron";
+
+    return "browser";
+  }
+  window.detectRuntime = detectRuntime;
+})();
+</script>
+<script type="text/javascript">
 
 window.onload = d2js_onload;
 window.onorientationchange = d2js_onorientationchange;
@@ -650,8 +668,10 @@ function init2D(g) {
 function clear2D(g) {
   g.setColor(g.getColorOfRGBA(255, 255, 255, 0));
   g.fillRect(0, 0, getWidth(), getHeight());
+if (window.detectRuntime() === "browser") {
   g.setColor(g.getColorOfRGB(0, 0, 0));
   g.drawRect(0, 0, getWidth() - 1, getHeight() - 1);
+}
 }
 
 function paint3D(gl, glu) {
