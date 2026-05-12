@@ -54,14 +54,14 @@ var useGamepad = false;
 var useSound = true;
 
 // 影
-window.useShadow = true;
-window.useTextureFloat = true;
-window.useHighPrecision = true; // useTextureFloatがfalseの時のみ参照される
-window.shadowFrameBufferWidth = 1024 * 4; // 2の累乗
-window.shadowFrameBufferHeight = 512 * 4; // 2の累乗
+var useShadow = true;
+var useTextureFloat = true;
+var useHighPrecision = true; // useTextureFloatがfalseの時のみ参照される
+var shadowFrameBufferWidth = 1024 * 4; // 2の累乗
+var shadowFrameBufferHeight = 512 * 4; // 2の累乗
 // 広い地形に対して小さいと、画面上に「ライトの届かない三角形」領域と境界が増えやすい
-window.shadowOrthoTop = 400.0;
-window.shadowTolerance = [
+var shadowOrthoTop = 400.0;
+var shadowTolerance = [
   0.001, // useTextureFloatがtrueの時
   0.004, // 1/256(=0.0039)より大きい値
   0.001 // 1/1024(=0.00097)より大きい値
@@ -521,12 +521,12 @@ function paint(g) {
 function init3D(gl, _glu) {
   glu = _glu;
 
-  if (window.useShadow) {
+  if (useShadow) {
     if (canUseWebGLDepthTexture(gl)) {
       // バッファの構築
-      shadowFrameBuffer = myCreateFrameBufferObject(gl, window.shadowFrameBufferWidth, window.shadowFrameBufferHeight, window.useTextureFloat);
+      shadowFrameBuffer = myCreateFrameBufferObject(gl, shadowFrameBufferWidth, shadowFrameBufferHeight, useTextureFloat);
     } else {
-      window.useShadow = false;
+      useShadow = false;
     }
   }
 
@@ -548,13 +548,13 @@ function init3D(gl, _glu) {
   glu.frustum(l, r, b, t, zNear, zFar);
   projMatrix = glu.glMatrix();
 
-  if (window.useShadow) {
+  if (useShadow) {
     // 光源視点でのプロジェクション行列
     zNear = 0.1; // 表示するオブジェクトの範囲（手前）
     zFar = 1000.0; // 表示するオブジェクトの範囲（奥）
-    t = window.shadowOrthoTop;
+    t = shadowOrthoTop;
     b = -t;
-    r = t * (window.shadowFrameBufferWidth / window.shadowFrameBufferHeight);
+    r = t * (shadowFrameBufferWidth / shadowFrameBufferHeight);
     l = -r;
     glu.setIdentity();
     glu.ortho(l, r, b, t, zNear, zFar);
@@ -565,13 +565,13 @@ function init3D(gl, _glu) {
 
   shader = new _GLShader(vsSourceColor, fsSourceColor, true);
   shaderSprite = new _GLShader(vsSourceSprite, fsSourceSprite, true);
-  if (window.useShadow) {
+  if (useShadow) {
     shadowmapShader = new _GLShader(vsSourceShadowmap, fsSourceShadowmap, true);
     shadowmapSpriteShader = new _GLShader(vsSourceShadowmapSprite, fsSourceShadowmapSprite, true);
   }
 
   shader.use();
-  gl.uniform1i(shader.vars.uShadow, window.useShadow ? 1 : 0);
+  gl.uniform1i(shader.vars.uShadow, useShadow ? 1 : 0);
   gl.uniform3fv(shader.vars.uDirectionalLightColor, [0.5, 0.5, 0.5]);
   gl.uniform3fv(shader.vars.uDirectionalLightPosition, [light_x, light_y, light_z]);
   gl.uniform3fv(shader.vars.uAmbientLightColor, [0.6, 0.6, 0.6]);
@@ -581,7 +581,7 @@ function init3D(gl, _glu) {
   gl.uniform1f(shader.vars.uFogFar, 500.0);
 
   shaderSprite.use();
-  gl.uniform1i(shaderSprite.vars.uSampler, window.useShadow ? 1/*TEXTURE1*/ : 0/*TEXTURE0*/);
+  gl.uniform1i(shaderSprite.vars.uSampler, useShadow ? 1/*TEXTURE1*/ : 0/*TEXTURE0*/);
 
   model[MODEL_GROUND] = createGLModel(modelSrc[MODEL_GROUND], 6.0, MODEL_GROUND, true, false);
   model[MODEL_JIKI] = createGLModel(modelSrc[MODEL_JIKI], 0.01, MODEL_JIKI, true, false);
@@ -838,7 +838,7 @@ function paint3D(gl, glu) {
   viewMatrix = glu.glMatrix();
 
   var textureMatrixShadowmap = null;
-  if (window.useShadow) {
+  if (useShadow) {
     glu.push();
 
     // 光源視点でのビュー行列
@@ -865,12 +865,12 @@ function paint3D(gl, glu) {
 
     shadowmapShader.use();
     gl.uniformMatrix4fv(shadowmapShader.vars.uLightMatrix, false, depthViewProjMatrix);
-    gl.uniform1i(shadowmapShader.vars.uHighPrecision, window.useHighPrecision ? 1 : 0);
+    gl.uniform1i(shadowmapShader.vars.uHighPrecision, useHighPrecision ? 1 : 0);
     gl.uniform1i(shadowmapShader.vars.uTextureFloat, shadowFrameBuffer.textureFloat ? 1 : 0);
 
     shadowmapSpriteShader.use();
     gl.uniformMatrix4fv(shadowmapSpriteShader.vars.uLightMatrix, false, depthViewProjMatrix);
-    gl.uniform1i(shadowmapSpriteShader.vars.uHighPrecision, window.useHighPrecision ? 1 : 0);
+    gl.uniform1i(shadowmapSpriteShader.vars.uHighPrecision, useHighPrecision ? 1 : 0);
     gl.uniform1i(shadowmapSpriteShader.vars.uTextureFloat, shadowFrameBuffer.textureFloat ? 1 : 0);
     gl.uniform1i(shadowmapSpriteShader.vars.uSampler, 1/*TEXTURE1*/);
 
@@ -878,14 +878,14 @@ function paint3D(gl, glu) {
     gl.uniformMatrix4fv(shader.vars.uLightMatrix, false, depthViewProjMatrix);
     gl.uniformMatrix4fv(shader.vars.uTextureMatrixShadowmap, false, textureMatrixShadowmap);
     if (shadowFrameBuffer.textureFloat) {
-      gl.uniform1f(shader.vars.uTolerance, window.shadowTolerance[0]);
-    } else if (!window.useHighPrecision) {
-      gl.uniform1f(shader.vars.uTolerance, window.shadowTolerance[1]);
+      gl.uniform1f(shader.vars.uTolerance, shadowTolerance[0]);
+    } else if (!useHighPrecision) {
+      gl.uniform1f(shader.vars.uTolerance, shadowTolerance[1]);
     } else {
-      gl.uniform1f(shader.vars.uTolerance, window.shadowTolerance[2]);
+      gl.uniform1f(shader.vars.uTolerance, shadowTolerance[2]);
     }
     gl.uniform1i(shader.vars.uSamplerShadowmap, 0/*TEXTURE0*/);
-    gl.uniform1i(shader.vars.uHighPrecision, window.useHighPrecision ? 1 : 0);
+    gl.uniform1i(shader.vars.uHighPrecision, useHighPrecision ? 1 : 0);
     gl.uniform1i(shader.vars.uTextureFloat, shadowFrameBuffer.textureFloat ? 1 : 0);
   }
 
@@ -917,7 +917,7 @@ function paint3D(gl, glu) {
   gl.enable(gl.BLEND);
   gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE);
 
-  if (window.useShadow) {
+  if (useShadow) {
     shadowFlag = true;
 
     var gldShadow = new _GLDraw(null, false/*スプライト用行列にビュー行列を含めない*/);
@@ -937,7 +937,7 @@ function paint3D(gl, glu) {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     // 描画領域を伝える
-    glu.viewport(0.0, 0.0, window.shadowFrameBufferWidth, window.shadowFrameBufferHeight);
+    glu.viewport(0.0, 0.0, shadowFrameBufferWidth, shadowFrameBufferHeight);
 
     gl.enable(gl.POLYGON_OFFSET_FILL);
     gl.polygonOffset(1.5, 3.0);
@@ -1117,7 +1117,7 @@ function glTextureWrap(gl, index) {
 
 // _GLModel用
 function glModelActiveTexture(gl, id) {
-  if (window.useShadow && !shadowFlag) {
+  if (useShadow && !shadowFlag) {
     return gl.TEXTURE1;
   }
   return gl.TEXTURE0;
