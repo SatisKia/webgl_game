@@ -57,10 +57,6 @@ var useSound = true;
 var useShadow = true;
 var useTextureFloat = true;
 var useHighPrecision = true; // useTextureFloatがfalseの時のみ参照される
-var shadowFrameBufferWidth = 1024 * 4; // 2の累乗
-var shadowFrameBufferHeight = 512 * 4; // 2の累乗
-// 広い地形に対して小さいと、画面上に「ライトの届かない三角形」領域と境界が増えやすい
-var shadowOrthoTop = 400.0;
 var shadowTolerance = [
   0.001, // useTextureFloatがtrueの時
   0.004, // 1/256(=0.0039)より大きい値
@@ -150,13 +146,15 @@ var requestIncStep = false;
 var elapse = 0;
 
 // 影
-var shadowFlag = false;
-var shadowFrameBuffer = null;
-var shadowmapShader = null;
-var shadowmapSpriteShader = null;
+var shadowFrameBufferWidth = 1024 * 4; // 2の累乗
+var shadowFrameBufferHeight = 512 * 4; // 2の累乗
+var shadowFrameBuffer;
+var shadowmapShader;
+var shadowmapSpriteShader;
 var depthProjMatrix;
 var depthViewMatrix;
 var depthViewProjMatrix;
+var shadowFlag;
 
 var light_x = -0.85 * 100;
 var light_y = 0.8 * 100;
@@ -552,15 +550,15 @@ function init3D(gl, _glu) {
     // 光源視点でのプロジェクション行列
     zNear = 0.1; // 表示するオブジェクトの範囲（手前）
     zFar = 1000.0; // 表示するオブジェクトの範囲（奥）
-    t = shadowOrthoTop;
+    t = 400.0; // 広い地形に対して小さいと、画面上に「ライトの届かない三角形」領域と境界が増えやすい
     b = -t;
     r = t * (shadowFrameBufferWidth / shadowFrameBufferHeight);
     l = -r;
+    glu.push();
     glu.setIdentity();
     glu.ortho(l, r, b, t, zNear, zFar);
     depthProjMatrix = glu.glMatrix();
-    // orthoでutil_matが直交投影のままになると、この後のcreateGLModel内のtransVectorが壊れてモデルが破綻する
-    glu.setIdentity();
+    glu.pop();
   }
 
   shader = new _GLShader(vsSourceColor, fsSourceColor, true);
