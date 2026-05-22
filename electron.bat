@@ -1,6 +1,7 @@
 md build
 md build\tmp
 md build\tmp\mp3
+copy icon.ico              build\tmp
 copy 9.html                build\tmp
 copy _Gamepad.js           build\tmp
 copy Fps.js                build\tmp
@@ -24,7 +25,7 @@ copy mp3\*.*               build\tmp\mp3
 set NODE_TLS_REJECT_UNAUTHORIZED=0
 
 cd build
-call electron-packager ./tmp webgl_game --app-version=0.0.1 --electron-version=24.1.3 --platform=win32 --arch=x64 --overwrite
+call electron-packager ./tmp webgl_game --app-version=0.0.1 --electron-version=24.1.3 --platform=win32 --arch=x64 --icon=./tmp/icon.ico --overwrite
 @echo on
 cd ..
 

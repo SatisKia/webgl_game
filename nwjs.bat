@@ -1,6 +1,8 @@
 md build
 md build\tmp
 md build\tmp\mp3
+copy icon.ico           build\tmp
+copy icon.png           build\tmp
 copy 9.html             build\tmp
 copy _Gamepad.js        build\tmp
 copy Fps.js             build\tmp
@@ -17,7 +19,7 @@ copy model_jiki_shot.js build\tmp
 copy model_enemy01.js   build\tmp
 copy model_enemy02.js   build\tmp
 copy texture.js         build\tmp
-copy nwjs\index.js      build\tmp
+copy nwjs\api.js        build\tmp
 copy nwjs\package.json  build\tmp
 copy mp3\*.*            build\tmp\mp3
 
@@ -28,7 +30,7 @@ call npm install --production
 @echo on
 cd ..
 copy ..\nwjs\app.json tmp\package.json
-call nwbuild --version=0.79.1 --platform=win --arch=x64 --glob=false tmp
+call nwbuild --glob=false tmp
 @echo on
 cd ..
 
