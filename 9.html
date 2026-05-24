@@ -836,7 +836,6 @@ function paint3D(gl, glu) {
   glu.lookAt(camera_x, camera_y, camera_z, look_x, look_y, look_z, 0.0, 1.0, 0.0);
   viewMatrix = glu.glMatrix();
 
-  var textureMatrixShadowmap = null;
   if (useShadow) {
     glu.push();
 
@@ -858,7 +857,7 @@ function paint3D(gl, glu) {
     ]);
     glu.multiply(glu.utMatrix(depthProjMatrix));
     glu.multiply(glu.utMatrix(depthViewMatrix));
-    textureMatrixShadowmap = glu.glMatrix();
+    var textureMatrixShadowmap = glu.glMatrix();
 
     glu.pop();
 
