@@ -97,8 +97,8 @@ var fsSourceColor = `
           lightCoord = lightCoord * 0.5 + vec4(0.5); // -1.0～1.0の値を0.0～1.0の値に変換
           // ライト直交視錘のXY（および近すぎ/遠すぎのZ）の外側ではCLAMP参照が一定値になり、画面上に長大な変な三角形状の疑似影になりやすい
           float m = 0.02;
-          bool inAtlas = lightCoord.x >= m && lightCoord.x <= 1.0 - m && lightCoord.y >= m && lightCoord.y <= 1.0 - m && lightCoord.z >= m && lightCoord.z <= 1.0 - m;
-          if (inAtlas) {
+          bool inShadowMapBounds = lightCoord.x >= m && lightCoord.x <= 1.0 - m && lightCoord.y >= m && lightCoord.y <= 1.0 - m && lightCoord.z >= m && lightCoord.z <= 1.0 - m;
+          if (inShadowMapBounds) {
             vec4 shadowmapColor = texture2DProj(uSamplerShadowmap, vTextureCoordShadowmap);
             float z = (!bool(uHighPrecision) || bool(uTextureFloat)) ? shadowmapColor.r : (shadowmapColor.r + shadowmapColor.g + shadowmapColor.b + shadowmapColor.a) / 4.0;
             if (lightCoord.z > z + uTolerance) {
