@@ -19,7 +19,7 @@ copy model_jiki_shot.js build\tmp
 copy model_enemy01.js   build\tmp
 copy model_enemy02.js   build\tmp
 copy texture.js         build\tmp
-copy nwjs\api.js        build\tmp
+copy nwjs\src\api.js    build\tmp
 copy nwjs\package.json  build\tmp
 copy mp3\*.*            build\tmp\mp3
 
@@ -29,7 +29,7 @@ cd build\tmp
 call npm install --production
 @echo on
 cd ..
-copy ..\nwjs\app.json tmp\package.json
+copy ..\nwjs\src\package.json tmp
 call nwbuild --glob=false tmp
 @echo on
 cd ..

@@ -77,6 +77,17 @@ var projMatrix;
 var viewMatrix;
 var viewProjMatrix;
 
+// 影
+var shadowFrameBufferWidth = 1024 * 4; // 2の累乗
+var shadowFrameBufferHeight = 512 * 4; // 2の累乗
+var shadowFrameBuffer;
+var shadowmapShader;
+var shadowmapSpriteShader;
+var depthProjMatrix;
+var depthViewMatrix;
+var depthViewProjMatrix;
+var shadowFlag;
+
 var MODEL_GROUND = 0;
 var MODEL_JIKI = 1;
 var MODEL_JIKI_SHOT = 2;
@@ -145,67 +156,9 @@ var step = 0;
 var requestIncStep = false;
 var elapse = 0;
 
-// 影
-var shadowFrameBufferWidth = 1024 * 4; // 2の累乗
-var shadowFrameBufferHeight = 512 * 4; // 2の累乗
-var shadowFrameBuffer;
-var shadowmapShader;
-var shadowmapSpriteShader;
-var depthProjMatrix;
-var depthViewMatrix;
-var depthViewProjMatrix;
-var shadowFlag;
-
 var light_x = -0.85 * 100;
 var light_y = 0.8 * 100;
 var light_z = -0.75 * 100;
-
-function myCreateFrameBufferObject(gl, width, height, textureFloat) {
-  if (textureFloat == undefined) {
-    textureFloat = false;
-  }
-  if (textureFloat) {
-    textureFloat = canUseWebGLTextureFloat(gl);
-  }
-
-  // フレームバッファ
-  var frameBuffer = gl.createFramebuffer();
-
-  // テクスチャバッファ
-  var colorBuffer = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, colorBuffer);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, textureFloat ? gl.FLOAT : gl.UNSIGNED_BYTE, null);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, textureFloat ? gl.NEAREST : gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, textureFloat ? gl.NEAREST : gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-
-  // 深度バッファ
-  var depthBuffer = gl.createRenderbuffer();
-  gl.bindRenderbuffer(gl.RENDERBUFFER, depthBuffer);
-  gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, width, height); // レンダーバッファを深度バッファとして設定
-
-  gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, colorBuffer, 0);
-  gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthBuffer);
-
-  var status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
-
-  gl.bindTexture(gl.TEXTURE_2D, null);
-  gl.bindRenderbuffer(gl.RENDERBUFFER, null);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-  if (status !== gl.FRAMEBUFFER_COMPLETE) {
-    return null;
-  }
-
-  frameBuffer.textureFloat = textureFloat;
-  frameBuffer.colorBuffer = colorBuffer;
-  frameBuffer.depthBuffer = depthBuffer;
-  frameBuffer.width = width;
-  frameBuffer.height = height;
-  return frameBuffer;
-}
 
 // スコア
 var score = 0;
@@ -446,6 +399,53 @@ function playSound(id) {
       }
     }
   }
+}
+
+function myCreateFrameBufferObject(gl, width, height, textureFloat) {
+  if (textureFloat == undefined) {
+    textureFloat = false;
+  }
+  if (textureFloat) {
+    textureFloat = canUseWebGLTextureFloat(gl);
+  }
+
+  // フレームバッファ
+  var frameBuffer = gl.createFramebuffer();
+
+  // テクスチャバッファ
+  var colorBuffer = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, colorBuffer);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, textureFloat ? gl.FLOAT : gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, textureFloat ? gl.NEAREST : gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, textureFloat ? gl.NEAREST : gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+  // 深度バッファ
+  var depthBuffer = gl.createRenderbuffer();
+  gl.bindRenderbuffer(gl.RENDERBUFFER, depthBuffer);
+  gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, width, height); // レンダーバッファを深度バッファとして設定
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, colorBuffer, 0);
+  gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthBuffer);
+
+  var status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+  if (status !== gl.FRAMEBUFFER_COMPLETE) {
+    return null;
+  }
+
+  frameBuffer.textureFloat = textureFloat;
+  frameBuffer.colorBuffer = colorBuffer;
+  frameBuffer.depthBuffer = depthBuffer;
+  frameBuffer.width = width;
+  frameBuffer.height = height;
+  return frameBuffer;
 }
 
 function frameTime() {
