@@ -918,7 +918,7 @@ function paint3D(gl, glu) {
     shadowFlag = true;
 
     var gldShadow = new _GLDraw(null, false/*スプライト用行列にビュー行列を含めない*/);
-    myDraw(gldShadow, false);
+    myDraw(gldShadow);
 
     var maxAttribs = gl.getParameter(gl.MAX_VERTEX_ATTRIBS);
     for (var ai = 0; ai < maxAttribs; ai++) {
@@ -959,13 +959,13 @@ function paint3D(gl, glu) {
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
   var gld = new _GLDraw(null, false/*スプライト用行列にビュー行列を含めない*/);
-  myDraw(gld, true);
+  myDraw(gld);
   gld.draw(glt);
 
   elapse++;
 }
 
-function myDraw(gld, draw2D) {
+function myDraw(gld) {
   var i;
 
   // 地面
@@ -983,7 +983,7 @@ if (!shadowFlag) {
 
   // 自機
   jiki.draw(gld);
-if (draw2D) {
+if (!shadowFlag) {
   drawHit(jiki.x(), jiki.y(), jiki.z(), jiki.radius());
 }
 
@@ -1000,7 +1000,7 @@ if (!shadowFlag) {
   for (i = jikiShots.size() - 1; i >= 0; i--) {
     var tmp = jikiShots.get(i);
     tmp.draw(gld);
-if (draw2D) {
+if (!shadowFlag) {
     drawHit(tmp.x(), tmp.y(), tmp.z(), tmp.radius());
 }
   }
@@ -1010,7 +1010,7 @@ if (draw2D) {
   for (i = enemy.size() - 1; i >= 0; i--) {
     var tmp = enemy.elementAt(i);
     tmp.draw(gld);
-if (draw2D) {
+if (!shadowFlag) {
     drawHit(tmp.x(), tmp.y(), tmp.z(), tmp.radius());
     drawTarget(tmp.tx(), tmp.ty(), tmp.tz());
 
@@ -1052,7 +1052,7 @@ if (!shadowFlag) {
   for (i = enemyShot.size() - 1; i >= 0; i--) {
     var tmp = enemyShot.elementAt(i);
     tmp.draw(gld);
-if (draw2D) {
+if (!shadowFlag) {
     drawHit(tmp.x(), tmp.y(), tmp.z(), tmp.radius());
     drawTarget(tmp.tx(), tmp.ty(), tmp.tz());
 }
