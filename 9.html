@@ -63,12 +63,21 @@ var shadowTolerance = [
   0.001 // 1/1024(=0.00097)より大きい値
 ];
 
+var useStereo = false;
+var canvasWidth = 1024;
+var useStereoTrans = false;
+var stereoTrans = 0.2;
+var stereoAngle = 1.5;
+
 var WAIT_1 = 60/*フレーム*/;
 
 var rand;
 
 // _GLUtility
 var glu;
+
+// _GLStereo
+var stereo;
 
 // シェーダー
 var shader;
@@ -156,6 +165,12 @@ var step = 0;
 var requestIncStep = false;
 var elapse = 0;
 
+var camera_x;
+var camera_y;
+var camera_z;
+var look_x;
+var look_y;
+var look_z;
 var light_x = -0.85 * 100;
 var light_y = 0.8 * 100;
 var light_z = -0.75 * 100;
@@ -301,9 +316,12 @@ function drawHit(x, y, z, r) {
     y -= glu.projectY();
     z -= glu.projectZ();
     var d = Math.sqrt(x * x + y * y + z * z);
-    var g = getGraphics();
+    var g = useStereo ? stereo.getGraphics() : getGraphics();
     g.setColor(g.getColorOfRGBA(255, 0, 255, 127));
     g.drawCircle(projectX, getHeight() - projectY, r / d);
+    if (useStereo) {
+      g.clearClip();
+    }
   }
 }
 
@@ -317,10 +335,13 @@ function drawTarget(x, y, z) {
   var projectY = glu.projectY();
   x = projectX;
   y = getHeight() - projectY;
-  var g = getGraphics();
+  var g = useStereo ? stereo.getGraphics() : getGraphics();
   g.setFont(16, [ "MS Gothic", "sans-serif" ]);
   g.setColor(g.getColorOfRGB(255, 0, 255));
   g.drawString("＋", x - 8, y + 8);
+  if (useStereo) {
+    g.clearClip();
+  }
 }
 
 // ゲームパッド対応
@@ -528,6 +549,13 @@ function init3D(gl, _glu) {
     }
   }
 
+  if (useStereo) {
+    setCanvasSize(canvasWidth, getHeight());
+    setCanvas3DSize(canvasWidth, getHeight());
+
+    stereo = new _GLStereo(0.0, 0.0, getWidth(), getHeight());
+  }
+
   glt = new _GLTexture(textureArray, TEXTURE_NUM);
   glt.use(TEXTURE_JIKI_JET, true);
   glt.use(TEXTURE_BAKU, true);
@@ -545,6 +573,9 @@ function init3D(gl, _glu) {
   glu.setIdentity();
   glu.frustum(l, r, b, t, zNear, zFar);
   projMatrix = glu.glMatrix();
+  if (useStereo) {
+    stereo.setProjectionMatrix(projMatrix);
+  }
 
   if (useShadow) {
     // 光源視点でのプロジェクション行列
@@ -818,12 +849,12 @@ function paint3D(gl, glu) {
   var camera_vx = -jiki.vx() * 10.0;
   var camera_vy = -jiki.vy() * 10.0;
   var camera_vz = -jiki.vz() * 10.0;
-  var look_x = jiki.x();
-  var look_y = jiki.y();
-  var look_z = jiki.z();
-  var camera_x = look_x + camera_vx;
-  var camera_y = look_y + camera_vy;
-  var camera_z = look_z + camera_vz;
+  look_x = jiki.x();
+  look_y = jiki.y();
+  look_z = jiki.z();
+  camera_x = look_x + camera_vx;
+  camera_y = look_y + camera_vy;
+  camera_z = look_z + camera_vz;
   if (lookDown) {
     look_x += jiki.vx() * 30.0;
     look_z += jiki.vz() * 30.0;
@@ -834,6 +865,9 @@ function paint3D(gl, glu) {
   }
   glu.lookAt(camera_x, camera_y, camera_z, look_x, look_y, look_z, 0.0, 1.0, 0.0);
   viewMatrix = glu.glMatrix();
+  if (useStereo && !useStereoTrans) {
+    stereo.setViewMatrix(viewMatrix, stereoAngle);
+  }
 
   if (useShadow) {
     glu.push();
@@ -886,6 +920,15 @@ function paint3D(gl, glu) {
     gl.uniform1i(shader.vars.uTextureFloat, shadowFrameBuffer.textureFloat ? 1 : 0);
   }
 
+  if (useStereo) {
+    stereo.draw();
+  } else {
+    myDraw3D(gl);
+  }
+
+  elapse++;
+}
+function myDraw3D(gl, leftFlag) {
   // ビュー×プロジェクション座標変換行列
   glu.set(glu.utMatrix(projMatrix));
   glu.multiply(glu.utMatrix(viewMatrix));
@@ -956,15 +999,19 @@ function paint3D(gl, glu) {
 
   gl.clearColor(1.0, 1.0, 1.0, 1.0);
   gl.clearDepth(1.0);
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  if (useStereo) {
+    stereo.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    // 描画領域を伝える
+    stereo.viewport();
+  } else {
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  }
 
   var gld = new _GLDraw(null, false/*スプライト用行列にビュー行列を含めない*/);
   myDraw(gld);
   gld.draw(glt);
-
-  elapse++;
 }
-
 function myDraw(gld) {
   var i;
 
@@ -1025,7 +1072,7 @@ if (!shadowFlag) {
       var distance = Math.sqrt(x * x + y * y + z * z);
       x = projectX;
       y = getHeight() - projectY;
-      var g = getGraphics();
+      var g = useStereo ? stereo.getGraphics() : getGraphics();
       g.setFont(8, [ "MS Gothic", "sans-serif" ]);
       g.setColor(g.getColorOfRGB(0, 255, 255));
       z = 50 - distance;
@@ -1035,6 +1082,9 @@ if (!shadowFlag) {
       g.drawLine(x, y, x + z, y - z);
       g.drawLine(x + z, y - z, x + z + 20, y - z);
       g.drawString("" + (_INT(distance * 100) / 100), x + z, y - z);
+      if (useStereo) {
+        g.clearClip();
+      }
     }
 }
   }
@@ -1080,19 +1130,26 @@ function paint2D(g) {
     return;
   }
 
+  if (useStereo) {
+    stereo.draw2D(g);
+  } else {
+    myDraw2D(g, getWidth());
+  }
+
+  myScreenshot2D();
+}
+function myDraw2D(g, width) {
   if (!lookDown) {
     g.setFont(24, [ "MS Gothic", "sans-serif" ]);
     g.setColor(g.getColorOfRGB(0, 0, 0));
     var str = "" + score;
     g.drawString("SCORE", 0, 24);
-    g.drawString(str, getWidth() / 3 - g.stringWidth(str), 24);
+    g.drawString(str, width / 3 - g.stringWidth(str), 24);
   }
 
   if (calcFps) {
     myDrawFps(g);
   }
-
-  myScreenshot2D();
 }
 
 // _GLTexture用
@@ -1238,6 +1295,31 @@ function glDrawSetModelViewMatrix(gl, mat, p, index) {
 
     glu.pop();
   }
+}
+
+// _GLStereo用
+function glStereoSetProjectionMatrix(gl, mat) {
+  projMatrix = mat;
+}
+function glStereoSetViewMatrix(gl, mat) {
+  viewMatrix = mat;
+}
+function glStereoDraw(gl, glu, leftFlag) {
+  if (useStereoTrans) {
+    glu.push();
+    if (leftFlag) {
+      glu.lookAt(camera_x + stereoTrans, camera_y, camera_z, look_x, look_y, look_z, 0.0, 1.0, 0.0);
+    } else {
+      glu.lookAt(camera_x - stereoTrans, camera_y, camera_z, look_x, look_y, look_z, 0.0, 1.0, 0.0);
+    }
+    glStereoSetViewMatrix(gl, glu.glMatrix());
+    glu.pop();
+  }
+
+  myDraw3D(gl, leftFlag);
+}
+function glStereoDraw2D(g, width) {
+  myDraw2D(g, width);
 }
 
 function processEvent(type, param) {
