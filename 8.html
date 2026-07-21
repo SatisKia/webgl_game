@@ -3,7 +3,6 @@
 <head>
 <meta charset="utf-8" />
 <title></title>
-<script type="text/javascript" src="_Gamepad.js"></script>
 <script type="text/javascript" src="Fps.js"></script>
 <script type="text/javascript" src="Screenshot.js"></script>
 <script type="text/javascript" src="d2js.js"></script>
@@ -31,8 +30,6 @@ var autoShot = false;
 var expandHitFlag = true;
 var drawHitFlag = false;
 var drawTargetFlag = false;
-var useGamepad = false;
-var useSound = true;
 
 var WAIT_1 = 60/*フレーム*/;
 
@@ -71,24 +68,6 @@ var textureLoaded = 0;
 var textureArray = new Array();
 var glt;
 
-// BGM
-var BGM_MAIN = 0;
-var bgm = null;
-var bgmPlaying = false;
-var bgmSrc = [
-  "mp3/bgm_main.mp3",
-];
-
-// SE
-var SE_JIKI_SHOT = 0;
-var SE_BAKU = 1;
-var seLoaded = 0;
-var se = new Array();
-var seSrc = [
-  "mp3/se_jiki_shot.mp3",
-  "mp3/se_baku.mp3",
-];
-
 // 自機
 var jiki = null;
 
@@ -110,10 +89,6 @@ var glsBaku;
 var enemyShot;
 var glsShot;
 
-var gamepad;
-var padInfo;
-var step = 0;
-var requestIncStep = false;
 var elapse = 0;
 
 // スコア
@@ -223,9 +198,6 @@ function addEnemy02(flag) {
 
 // 爆発を発生させる
 function addBaku(x, y, z) {
-  if (useSound) {
-    playSound(SE_BAKU);
-  }
   baku.addElement(new Baku(x, y, z, rand.next(50) / 50, rand.next(50) / 50, rand.next(50) / 50));
 }
 
@@ -279,84 +251,6 @@ function drawTarget(x, y, z) {
   g.drawString("＋", x - 8, y + 8);
 }
 
-// ゲームパッド対応
-var PAD_TYPE_BUTTON = 0;
-var PAD_TYPE_AXIS_MINUS = 1;
-var PAD_TYPE_AXIS_PLUS = 2;
-function MyPadInfo(){
-  this.type  = PAD_TYPE_BUTTON;
-  this.index = -1;
-}
-function waitInputPad(gamepad, padInfo) {
-  if (gamepad == null) {
-    return true;
-  }
-  var i;
-  for (i = 0; i < gamepad.buttonNum(); i++) {
-    if (gamepad.isButtonPressed(i)) {
-      padInfo.type  = PAD_TYPE_BUTTON;
-      padInfo.index = i;
-      return true;
-    }
-  }
-  for (i = 0; i < gamepad.axisNum(); i++) {
-    var value = gamepad.axisValue(i);
-    if (value == 1.0) {
-      padInfo.type  = PAD_TYPE_AXIS_PLUS;
-      padInfo.index = i;
-      return true;
-    }
-    if (value == -1.0) {
-      padInfo.type  = PAD_TYPE_AXIS_MINUS;
-      padInfo.index = i;
-      return true;
-    }
-  }
-  return false;
-}
-function isInputPad(gamepad, padInfo) {
-  if (gamepad != null) {
-    switch (padInfo.type) {
-    case PAD_TYPE_BUTTON:
-      return gamepad.isButtonPressed(padInfo.index);
-    case PAD_TYPE_AXIS_MINUS:
-      return (gamepad.axisValue(padInfo.index) < 0.0);
-    case PAD_TYPE_AXIS_PLUS:
-      return (gamepad.axisValue(padInfo.index) > 0.0);
-    }
-  }
-  return false;
-}
-
-// BGM再生
-function stopMusic() {
-  if (bgm != null) {
-    stopAudio(bgm);
-  }
-}
-function playMusic(id) {
-  if (canUseAudio()) {
-    stopMusic();
-    bgm = loadAndPlayAudio(bgmSrc[id], true);
-  }
-}
-
-// SE再生
-var soundId = -1;
-function resetSound() {
-  soundId = -1;
-}
-function playSound(id) {
-  if (se[id] != null) {
-    if (canUseAudio()) {
-      if (id != soundId) {
-        soundId = id;
-        playAudio(se[soundId], false);
-      }
-    }
-  }
-}
-
 function frameTime() {
   return 1000 / WAIT_1;
 }
@@ -369,46 +263,15 @@ function init() {
 }
 
 function start() {
-  var i;
-
-  // SE
-  if (useSound) {
-    for (i = 0; i < seSrc.length; i++) {
-      se[i] = null;
-    }
-  }
-
   rand = new _Random();
-
-  if (useGamepad) {
-    gamepad = new _Gamepad();
-    gamepad.setTolerance(0.5/*0.05*/, 1.0);
-
-    padInfo = new Array(5);
-    for (i = 0; i < 5; i++) {
-      padInfo[i] = new MyPadInfo();
-    }
-  }
 
   setCurrent("fuga_canvas");
   return true;
 }
 
 function paint(g) {
-  if (useSound) {
-    // SEの読み込み
-    if (seLoaded < seSrc.length) {
-      if (canUseAudio()) {
-        if (canPlayType("audio/mp3")) {
-          se[seLoaded] = loadAudio(seSrc[seLoaded]);
-        }
-      }
-      seLoaded++;
-    }
-  }
-
   // テクスチャの読み込み
-  if ((!useSound || (seLoaded >= seSrc.length)) && (textureLoaded < textureSrc.length)) {
+  if (textureLoaded < textureSrc.length) {
     if (isImageBusy()) {
     } else if (textureArray.length <= textureSrc.length) {
       var index = textureArray.length;
@@ -420,7 +283,7 @@ function paint(g) {
     }
   }
 
-  if ((!useSound || (seLoaded >= seSrc.length)) && (textureLoaded >= textureSrc.length)) {
+  if (textureLoaded >= textureSrc.length) {
     setCurrent3D("hoge_canvas", "fuga_canvas");
   }
 }
@@ -553,26 +416,9 @@ function clear2D(g) {
 function paint3D(gl, glu) {
   var i, j;
 
-  if (useGamepad && (step < 5)) {
-    return;
-  }
-
-  // BGM再生
-  if (useSound) {
-    if (!bgmPlaying) {
-      bgmPlaying = true;
-      playMusic(BGM_MAIN);
-    }
-  }
-
   for (var frame = 0; frame < frameCount(); frame++) {
     if (frame != 0) {
       elapse++;
-    }
-
-    // SE
-    if (useSound) {
-      resetSound();
     }
 
     // 自弾と敵との当たり判定
@@ -603,12 +449,11 @@ function paint3D(gl, glu) {
     }
 
     var key = getKeypadState();
-    var _gamepad = (useGamepad && canUseGamepad() && (gamepad.fetch(0) != null)) ? gamepad : null;
     jiki.update(
-      ((key & keyBit(window._KEY_UP   )) != 0) || (useGamepad && isInputPad(_gamepad, padInfo[0])),
-      ((key & keyBit(window._KEY_DOWN )) != 0) || (useGamepad && isInputPad(_gamepad, padInfo[1])),
-      ((key & keyBit(window._KEY_LEFT )) != 0) || (useGamepad && isInputPad(_gamepad, padInfo[2])),
-      ((key & keyBit(window._KEY_RIGHT)) != 0) || (useGamepad && isInputPad(_gamepad, padInfo[3]))
+      (key & keyBit(window._KEY_UP   )) != 0,
+      (key & keyBit(window._KEY_DOWN )) != 0,
+      (key & keyBit(window._KEY_LEFT )) != 0,
+      (key & keyBit(window._KEY_RIGHT)) != 0
     );
 
     // 噴射の追加
@@ -640,12 +485,8 @@ function paint3D(gl, glu) {
     }
 
     // 自弾の追加
-    if (autoShot || ((key & keyBit(window._KEY_SPACE)) != 0) || (useGamepad && isInputPad(_gamepad, padInfo[4]))) {
-      if (jikiShots.add(elapse, jiki.x(), jiki.y(), jiki.z(), jiki.vx(), jiki.vy(), jiki.vz(), jiki.rz())) {
-        if (useSound) {
-          playSound(SE_JIKI_SHOT);
-        }
-      }
+    if (autoShot || ((key & keyBit(window._KEY_SPACE)) != 0)) {
+      jikiShots.add(elapse, jiki.x(), jiki.y(), jiki.z(), jiki.vx(), jiki.vy(), jiki.vz(), jiki.rz());
     }
 
     // 噴射の更新
@@ -828,25 +669,6 @@ function paint3D(gl, glu) {
 }
 
 function paint2D(g) {
-  if (useGamepad && (step < 5)) {
-    g.setFont(24, [ "MS Gothic", "sans-serif" ]);
-    g.setColor(g.getColorOfRGB(0, 0, 0));
-    switch (step) {
-    case 0: g.drawString("パッド上を入力してください", 0, 24); break;
-    case 1: g.drawString("パッド下を入力してください", 0, 24); break;
-    case 2: g.drawString("パッド左を入力してください", 0, 24); break;
-    case 3: g.drawString("パッド右を入力してください", 0, 24); break;
-    case 4: g.drawString("パッドボタンを入力してください", 0, 24); break;
-    }
-    var _gamepad = (canUseGamepad() && (gamepad.fetch(0) != null)) ? gamepad : null;
-    if (_gamepad != null) {
-      if (waitInputPad(_gamepad, padInfo[step])) {
-        requestIncStep = true;
-      }
-    }
-    return;
-  }
-
   if (!lookDown) {
     g.setFont(24, [ "MS Gothic", "sans-serif" ]);
     g.setColor(g.getColorOfRGB(0, 0, 0));
@@ -977,19 +799,6 @@ function processEvent(type, param) {
   case window._KEY_PRESSED_EVENT:
     if (param == window._KEY_S) {
       myScreenshot();
-    }
-    break;
-  }
-}
-
-function processGamepadEvent(type, id, param) {
-  switch(type) {
-  case window._GAMEPAD_BUTTON_RELEASED_EVENT:
-  case window._GAMEPAD_AXIS_MINUS_RELEASED_EVENT:
-  case window._GAMEPAD_AXIS_PLUS_RELEASED_EVENT:
-    if (requestIncStep) {
-      requestIncStep = false;
-      step++;
     }
     break;
   }
@@ -1729,12 +1538,6 @@ EnemyShot.prototype = {
 };
 
 </script>
-<style type="text/css">
-html, body {
-  margin:0;
-  padding:0;
-}
-</style>
 </head>
 <body>
 <div align="center">
