@@ -1236,7 +1236,10 @@ function glModelEndDraw(gl, glt, index, tex_index, id, lighting) {
 
 // _GLSprite用
 function glSpriteActiveTexture(gl, id) {
-  return gl.TEXTURE1;
+  if (useShadow) {
+    return gl.TEXTURE1;
+  }
+  return gl.TEXTURE0;
 }
 function glSpriteBindPositionBuffer(gl, id) {
   if (shadowFlag) {
